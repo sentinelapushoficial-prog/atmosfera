@@ -189,6 +189,19 @@ main{display:grid;gap:18px;margin-top:18px}
 .search .btn.small{min-height:46px;min-width:46px}
 .search-more{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;font-size:.9rem}
 .search-more a{color:var(--amber)}
+/* Repertório compacto: resumo com contagem; a lista completa só aparece ao pedir, numa caixa rolável */
+.lib-summary{display:flex;align-items:center;justify-content:space-between;gap:10px;color:var(--parch-dim);font-size:.9rem}
+#libBox.scroll{max-height:55vh;overflow:auto;-webkit-overflow-scrolling:touch;padding-right:2px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding-top:6px;padding-bottom:6px}
+.song .pick .tt{flex:1;display:flex;flex-direction:column;gap:1px;min-width:0}
+.song .pick .t{font-weight:600}
+.song .pick .a{font-size:.75rem;color:var(--parch-dim);font-weight:400}
+/* sugestões do catálogo: marca com "+" e tom da gravação original */
+.sug-head{color:var(--parch-dim);font-size:.82rem;margin-top:4px}
+.song.sug{border-style:dashed}
+.song.sug .mark{color:var(--amber);border-color:var(--amber);font-size:1.2rem;line-height:1}
+.song.sug .pick .k{color:var(--amber)}
+/* aviso rápido depois de uma ação */
+.flash{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));z-index:49;max-width:560px;margin:0 auto;padding:10px 14px;border:1px solid var(--line);border-radius:14px;background:var(--ink-3);box-shadow:0 10px 36px rgba(0,0,0,.55);font-size:.92rem}
 .addform{display:grid;grid-template-columns:1fr;gap:8px}
 .addform input,.addform select{border:1px solid var(--line);background:var(--ink-2);border-radius:10px;padding:10px 12px;min-height:44px;min-width:0;width:100%}
 .addform .row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;gap:8px}
@@ -302,19 +315,37 @@ body.palco .song .mark{width:36px;height:36px;font-size:1rem}
         <ol class="setlist" id="seqlist" aria-label="Sequência de hoje"></ol>
       </section>
 
+      <section class="panel keep" aria-labelledby="hTom">
+        <div class="panel-head"><h2 id="hTom">Tom</h2><span class="hint">toque para trocar com transição suave</span></div>
+        <div class="keys" id="keys"></div>
+        <div class="seg" id="modes" role="group" aria-label="Modo do acorde"></div>
+        <p class="hint" id="modeHint"></p>
+      </section>
+
       <section class="panel keep" aria-labelledby="hRep">
-        <div class="panel-head"><h2 id="hRep">Repertório</h2><span class="hint">um toque põe na sequência, outro toque tira</span></div>
+        <div class="panel-head"><h2 id="hRep">Repertório</h2><span class="hint">digite o nome: o app mostra o tom; um toque põe na sequência</span></div>
         <div class="search">
-          <input type="search" id="search" placeholder="Buscar música e ver o tom" aria-label="Buscar música no repertório" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search">
+          <input type="search" id="search" placeholder="Nome da música" aria-label="Buscar música" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="search">
           <button class="btn small ghost" id="btnSearchClear" type="button" hidden aria-label="Limpar busca">✕</button>
         </div>
-        <ol class="setlist" id="setlist" aria-label="Repertório"></ol>
+        <div class="lib-summary" id="libSummary">
+          <span id="libCount">0 músicas cadastradas</span>
+          <button class="btn small ghost" id="btnLibToggle" type="button">Ver todas</button>
+        </div>
+        <div id="libBox">
+          <ol class="setlist" id="setlist" aria-label="Repertório"></ol>
+        </div>
+        <div id="sugBlock" hidden>
+          <p class="sug-head">Ainda não cadastradas · tom da gravação original · um toque põe na lista</p>
+          <ol class="setlist" id="suglist" aria-label="Sugestões"></ol>
+        </div>
         <div class="search-more" id="searchMore" hidden>
           <a id="searchWeb" href="#" target="_blank" rel="noopener">Ver o tom original na internet ↗</a>
           <button class="btn small" id="btnAddFromSearch" type="button">Cadastrar</button>
         </div>
         <form class="addform" id="addForm" autocomplete="off">
           <input type="text" id="addTitle" placeholder="Nome da música" aria-label="Nome da música" maxlength="60">
+          <input type="text" id="addArtist" placeholder="Cantor ou ministério (opcional)" aria-label="Artista" maxlength="60">
           <div class="row">
             <select id="addKey" aria-label="Tom"></select>
             <select id="addMode" aria-label="Modo">
@@ -339,13 +370,6 @@ body.palco .song .mark{width:36px;height:36px;font-size:1rem}
             <p class="hint">O repertório fica salvo neste aparelho. Para levar a outro, copie o texto aqui e cole lá.</p>
           </div>
         </details>
-      </section>
-
-      <section class="panel keep" aria-labelledby="hTom">
-        <div class="panel-head"><h2 id="hTom">Tom</h2><span class="hint">toque para trocar com transição suave</span></div>
-        <div class="keys" id="keys"></div>
-        <div class="seg" id="modes" role="group" aria-label="Modo do acorde"></div>
-        <p class="hint" id="modeHint"></p>
       </section>
     </div>
 
@@ -410,6 +434,7 @@ body.palco .song .mark{width:36px;height:36px;font-size:1rem}
   <footer class="foot" id="version"></footer>
 </div>
 
+<div class="flash" id="flash" hidden role="status"></div>
 <div class="toast" id="toast" hidden role="status">
   <span>Uma versão nova do Atmosfera já foi baixada. Atualize quando não estiver tocando.</span>
   <button class="btn small primary" id="toastReload" type="button">Atualizar agora</button>
@@ -440,16 +465,135 @@ var PRESETS = {
   profundo:{label:'Profundo',desc:'escuro, cinematográfico',   cutoff:680,  q:0.9, detune:6,  oscs:[['sawtooth',-1,0.45],['sawtooth',1,0.45],['triangle',0,0.75]], sub:0.75, high:0.08, width:0.35, reverb:0.55, lfoDepth:360, vib:0,   shimmer:false}
 };
 
+/* ---------- Catálogo embutido: tom da gravação original (fichas "Original Master" do MultiTracks e cifras oficiais) ----------
+   Formato: Título|Artista|Tom. Serve para sugerir o tom; o tom em que a igreja toca é o que fica no repertório (editável). */
+var CATALOG_RAW = [
+  'Galileu|Fernandinho|Bbm',
+  'Nada Além do Sangue|Fernandinho|Bb',
+  'Grandes Coisas|Fernandinho|A#m',
+  'Uma Nova História|Fernandinho|A',
+  'Santo|Fernandinho|C#m',
+  'Ousado Amor|Fernandinho|B',
+  'Adestra|Fernandinho|D',
+  'Foi Graça / Maravilhosa Graça|Fernandinho|B',
+  'Mil Motivos|Rachel Novaes e Fernandinho|Eb',
+  'Quebrantado|Vineyard|C',
+  'Vem, Esta É a Hora|Vineyard|D',
+  'Mais Que Um Amigo|Ministério Vineyard|G',
+  'Canção do Céu|Mauro Henrique (Ministério Zoe)|F#',
+  'Me Atraiu|Gabriela Rocha|G',
+  'Lugar Secreto|Gabriela Rocha|A',
+  'Oceanos|Ana Nóbrega|D',
+  'Oceanos (Onde Meus Pés Podem Falhar)|Hillsong em Português|D',
+  'Oh Quão Lindo Esse Nome É|Ana Nóbrega|D',
+  'Rio da Tua Glória|Ana Nóbrega|G',
+  'Mais|Ana Nóbrega|D',
+  'De Tal Maneira|Ana Nóbrega|G',
+  'Pra Te Adorar|Ana Nóbrega|G',
+  'Nome Sobre Todo Nome|Ana Nóbrega|G',
+  'Toma o Teu Lugar|Ana Nóbrega|Bb',
+  'Bondade de Deus|fhop music|G',
+  'Ousado Amor|David Quinlan|E',
+  'Ousado Amor|Renascer Praise|F#',
+  'Seja o Lugar de Adoração|Heloisa Rosa|A',
+  'Nada Além do Sangue / Pra Sempre / Oh Quão Lindo Esse Nome É|Theo Rubia|Bb',
+  'Yeshua|BRASAS (Theo Rubia, Israel Salazar, Mateus Brito)|G',
+  'Há Uma Canção|fhop music|A',
+  'Santo Espírito|fhop music|Bm',
+  'Tu És / Águas Purificadoras|fhop music|D',
+  'A Boa Parte|fhop music e Nívea Soares|E',
+  'Indesculpável|fhop music|Bm',
+  'Cantai / Até Sozim|fhop music e Marco Telles|D',
+  'Digno É o Cordeiro|Som do Céu (Gabi Sampaio)|A',
+  'Como Não Te Amar|Som do Céu (Gabi Sampaio)|G',
+  'Quem É Capaz do Livro Abrir|Som do Céu|E',
+  'Eu Vou Construir|Gabi Sampaio|D',
+  'Até Que o Senhor Venha|Cultura do Céu|C',
+  'Teu Coração|Hillsong em Português|C',
+  'Não Há Um Nome Igual|Hillsong em Português|G',
+  'Avivamento|Hillsong em Português|Db',
+  'Vida Achei|Hillsong em Português|C',
+  'Como Estou Tu Me Amas|Hillsong em Português|D',
+  'Tudo Por Ti|Hillsong em Português|B',
+  'Rei do Meu Coração|Be One Music|C',
+  'Pai das Luzes|Be One Music|Eb',
+  'Lá|Paulo Cesar Baruk|C',
+  'Vento e Lá|Alexandre Magnani|A',
+  'Canção de Jonas|Novo Canto e Leo Brandão|D',
+  'Bom Pastor|Novo Canto e Isaias Saad|Eb',
+  'Tu És Bom|NC Music|Bb',
+  'Acreditar|NC Music|Db',
+  'Além do Impossível|Felipe Rodrigues|Db',
+  'Caminho|Nós em Um|Bb',
+  'Lembrete|Nós em Um|D',
+  '131|Nós em Um|D',
+  'A Casa É Sua / Labareda|Julliany Souza e Isadora Pompeo|Ab',
+  'Eu Tenho Você / Era Eu|Julliany Souza|G',
+  'Amor Real|ADAI Music|Ab',
+  'Teu Amor É Mais Forte|ADAI Music|F',
+  'Se Isso Não For Amor|Rodrigo Soeiro|B',
+  'Loucura|Mateus Brito|B',
+  'Tua Presença Vale Mais|Mateus Brito e Gabriela Gomes|D',
+  'Quão Bom|Igreja Viva|F',
+  'Graça|Purples e Ana Heloysa|E',
+  'Tudo|Gabriela Gomes|D',
+  'Madrugada|Gabriela Gomes|C',
+  'O Bom Pastor|Gabriela Gomes|E',
+  'Eu Nasci pra Te Adorar|Nívea Soares|D',
+  'Pra Sempre|Nívea Soares|D',
+  'Vem|Nívea Soares|Bb',
+  'Quem É Como o Nosso Deus|Nívea Soares|Dm',
+  'Porque Ele Vive|Dunamis Music, Nívea Soares e Victor Valente|C',
+  'Santo|Gabriel Guedes|Bb',
+  'Recomece|Lagoinha ONE|E',
+  'Debaixo dos Nossos Pés|Lagoinha ONE|C',
+  'Tão Perto|Lagoinha Music e André Valadão|G',
+  'Teu Santo Nome / Ao Olhar pra Cruz|Novo Tempo|G',
+  'Medley Esperança|Diante do Trono|A',
+  'Medley Tempo de Festa|Diante do Trono|A',
+  'Manancial|Diante do Trono|Bb',
+  'Salmos 23|DT Worship e Diante do Trono|Ab',
+  'Vou Gritar|Diante do Trono|G',
+  'Não Há Outro Lugar|Central 3 e Alessandro Vilas Boas|A',
+  'Eu Creio|Cidade Viva Music|E',
+  'Tributo a Iehovah / Santo, Santo, Santo / Tua Glória|Morada|E',
+  'Felizes São|Morada|A',
+  'Genesis / Rompendo em Fé|Morada|A',
+  '5:50 AM / Todo Som|Morada|A',
+  'Que Jesus Seja o Nome|Elevation Español e Maria Marçal|Db',
+  'Aviva|Serginho Vílem|F',
+  'Me Ama|Isaque Valadão Bessa|A',
+  'Mudou Minha História|Viviane Barreto|G',
+  'Louve|Lu Alone|C',
+  'Dia de Milagres|Lakewood Music|Ebm',
+  'Gratidão|ONE Ministério|B',
+  'Dance|ONE Ministério|Bb',
+  'Mais Que Expressões|ONE Ministério|G',
+  'Milagres Diários|Vitória Souza|E',
+  'Grato Sou|Projeto Vida Music|B',
+  'Confio em Ti|Gislaine Rodrigues|Eb',
+  'Âncora|Fabio Papaleo|E',
+  'Razão do Meu Cantar|Adhemar de Campos|E',
+  'Ao Rei|André Mello|C',
+  'Foi a Sua Mão|Videira Music|B',
+  'Eu Tô no Culto|Israel Salazar|B',
+  'Luz da Esperança|K Worship Music|F',
+  'Zelo|AC Music|D',
+  'Tua Alegria|Drops INA|B',
+  'Eu Te Vejo em Tudo|Casa Worship|Ab',
+  'Caia Fogo|Sarah Oliveira e BRAVE|F'
+];
+
 /* ---------- Repertório inicial ---------- */
-var APP_VERSION = '1.1';
+var APP_VERSION = '1.2';
 var DEFAULT_SETLIST = [
-  {id:'d1', t:'Galileu',                           k:10, m:'menor'},
-  {id:'d2', t:'Canção do Céu',                     k:6,  m:'maior'},
-  {id:'d3', t:'Medley Relance · Exaltado',         k:2,  m:'maior'},
-  {id:'d4', t:'Medley Relance · A Ele a Glória',   k:8,  m:'maior'},
-  {id:'d5', t:'Poderoso Deus Eterno',              k:0,  m:'maior'},
-  {id:'d6', t:'Nada Além do Sangue',               k:10, m:'maior'},
-  {id:'d7', t:'Quebrantado',                       k:0,  m:'maior'}
+  {id:'d1', t:'Galileu',                           a:'Fernandinho',    k:10, m:'menor'},
+  {id:'d2', t:'Canção do Céu',                     a:'Mauro Henrique', k:6,  m:'maior'},
+  {id:'d3', t:'Medley Relance · Exaltado',                             k:2,  m:'maior'},
+  {id:'d4', t:'Medley Relance · A Ele a Glória',                       k:8,  m:'maior'},
+  {id:'d5', t:'Poderoso Deus Eterno',                                  k:0,  m:'maior'},
+  {id:'d6', t:'Nada Além do Sangue',               a:'Fernandinho',    k:10, m:'maior'},
+  {id:'d7', t:'Quebrantado',                       a:'Vineyard',       k:0,  m:'maior'}
 ];
 var DEFAULT_SEQ = ['d1','d2','d3','d4','d5','d6','d7'];
 var DEFAULT_SETTINGS = {preset:'quente', volume:0.8, fadeIn:10, xfade:10, bright:0.5, reverb:0.45, motion:0.5, width:0.4};
@@ -515,9 +659,25 @@ function sanitizeList(list){
     var m = MODES[s.m] ? s.m : 'maior';
     var id = (typeof s.id==='string' && s.id && !seen[s.id]) ? s.id : newId();
     seen[id]=true;
-    out.push({id:id, t:s.t.slice(0,60), k:k, m:m});
+    var song={id:id, t:s.t.slice(0,60), k:k, m:m};
+    if(typeof s.a==='string' && s.a.trim()) song.a=s.a.trim().slice(0,60);
+    out.push(song);
   }
   return out;
+}
+/* "A#m", "Bb", "F#" → classe de altura e modo */
+function parseKey(txt){
+  var mm=String(txt).trim().match(/^([A-Ga-g])([#♯b♭]?)\s*(m)?$/);
+  if(!mm) return null;
+  var base={c:0,d:2,e:4,f:5,g:7,a:9,b:11}[mm[1].toLowerCase()];
+  if(mm[2]==='#'||mm[2]==='♯') base+=1; if(mm[2]==='b'||mm[2]==='♭') base-=1;
+  return {k:(base+12)%12, m: mm[3] ? 'menor' : 'maior'};
+}
+var CATALOG = [];
+for(var ci=0; ci<CATALOG_RAW.length; ci++){
+  var cp=CATALOG_RAW[ci].split('|'); if(cp.length<3) continue;
+  var ck=parseKey(cp[2]); if(!ck) continue;
+  CATALOG.push({t:cp[0].trim(), a:cp[1].trim(), k:ck.k, m:ck.m, nt:norm(cp[0]), na:norm(cp[1])});
 }
 function sanitizeSeq(seq){
   var out=[], seen={};
@@ -1054,43 +1214,100 @@ function renderSeq(){
     li.appendChild(pick); li.appendChild(tools); ol.appendChild(li);
   });
 }
-/* Repertório: ordem alfabética, com busca; a marca redonda mostra a posição na sequência. */
-var query='';
+/* Repertório: compacto. Sem busca, só o resumo (a lista completa abre numa caixa rolável).
+   Com busca: as músicas cadastradas que batem com o nome e, abaixo, as sugestões do catálogo com o tom original. */
+var query='', libExpanded=false;
 function norm(s){ try{ s=s.normalize('NFD').replace(/[̀-ͯ]/g,''); }catch(e){} return s.toLowerCase().trim(); }
+function hit(text,q){ var n=norm(text); return (' '+n).indexOf(' '+q)>=0 || (q.length>=4 && n.indexOf(q)>=0); }
 function sortedList(){ return state.setlist.slice().sort(function(a,b){ return a.t.localeCompare(b.t,'pt-BR',{sensitivity:'base'}); }); }
+function songRow(s){
+  var pos=state.seq.indexOf(s.id);
+  var li=el('li','song'+(pos>=0?' inseq':''));
+  var pick=el('button','pick'); pick.type='button'; pick.setAttribute('aria-pressed', pos>=0?'true':'false');
+  pick.setAttribute('aria-label', (pos>=0?'Tirar da sequência: ':'Pôr na sequência: ')+s.t+', '+keyLabel(s.k,s.m));
+  var mark=el('span','mark', pos>=0?String(pos+1):''); mark.setAttribute('aria-hidden','true');
+  pick.appendChild(mark);
+  var tt=el('span','tt'); tt.appendChild(el('span','t',s.t)); if(s.a) tt.appendChild(el('span','a',s.a));
+  pick.appendChild(tt);
+  pick.appendChild(el('span','k',keyLabel(s.k,s.m)));
+  pick.addEventListener('click', function(){ toggleSeq(s.id); });
+  var tools=el('div','tools');
+  tools.appendChild(toolBtn('✎','Editar nome ou tom', function(){ beginEdit(s.id); }));
+  tools.appendChild(toolBtn('✕','Remover do repertório', function(){ removeSong(s.id); }));
+  li.appendChild(pick); li.appendChild(tools);
+  return li;
+}
+function sugRow(c){
+  var li=el('li','song sug');
+  var pick=el('button','pick'); pick.type='button';
+  pick.setAttribute('aria-label','Entrar na lista: '+c.t+', '+c.a+', tom original '+keyLabel(c.k,c.m));
+  var mark=el('span','mark','+'); mark.setAttribute('aria-hidden','true');
+  pick.appendChild(mark);
+  var tt=el('span','tt'); tt.appendChild(el('span','t',c.t)); tt.appendChild(el('span','a',c.a+' · tom original'));
+  pick.appendChild(tt);
+  pick.appendChild(el('span','k',keyLabel(c.k,c.m)));
+  pick.addEventListener('click', function(){ addFromCatalog(c); });
+  li.appendChild(pick);
+  return li;
+}
+function catalogMatches(q){
+  var have={}; state.setlist.forEach(function(s){ have[norm(s.t)]=true; });
+  var out=[];
+  for(var i=0;i<CATALOG.length;i++){
+    var c=CATALOG[i];
+    if(have[c.nt]) continue;
+    if(hit(c.t,q) || hit(c.a,q)) out.push(c);
+  }
+  out.sort(function(a,b){ var sa=a.nt.indexOf(q)===0?0:1, sb=b.nt.indexOf(q)===0?0:1; return sa-sb || a.t.localeCompare(b.t,'pt-BR'); });
+  return out.slice(0,8);
+}
 function renderLibrary(){
   var ol=$('#setlist'); ol.textContent='';
-  var qq=query.trim(), q=norm(qq);
+  var box=$('#libBox'), sum=$('#libSummary'), sug=$('#sugBlock'), sl=$('#suglist'); sl.textContent='';
+  var qq=query.trim(), q=norm(qq), n=state.setlist.length;
   $('#btnSearchClear').hidden=!qq;
   var more=$('#searchMore'); more.hidden = qq.length<2;
   if(!more.hidden){
     $('#searchWeb').href='https://www.google.com/search?q='+encodeURIComponent(qq+' cifra tom original');
     $('#searchWeb').textContent='Ver o tom original de “'+qq+'” na internet ↗';
-    $('#btnAddFromSearch').textContent='Cadastrar “'+qq+'”';
+    $('#btnAddFromSearch').textContent='Cadastrar “'+qq+'” à mão';
   }
-  if(!state.setlist.length){ ol.appendChild(el('li','empty','Repertório vazio. Cadastre abaixo as músicas, com o tom em que vocês tocam.')); return; }
-  var list=sortedList();
-  if(q) list=list.filter(function(s){ return norm(s.t).indexOf(q)>=0; });
-  if(!list.length){ ol.appendChild(el('li','empty','Nenhuma música do repertório com esse nome.')); return; }
-  list.forEach(function(s){
-    var pos=state.seq.indexOf(s.id);
-    var li=el('li','song'+(pos>=0?' inseq':''));
-    var pick=el('button','pick'); pick.type='button'; pick.setAttribute('aria-pressed', pos>=0?'true':'false');
-    pick.setAttribute('aria-label', (pos>=0?'Tirar da sequência: ':'Pôr na sequência: ')+s.t+', '+keyLabel(s.k,s.m));
-    var mark=el('span','mark', pos>=0?String(pos+1):''); mark.setAttribute('aria-hidden','true');
-    pick.appendChild(mark);
-    pick.appendChild(el('span','t',s.t));
-    pick.appendChild(el('span','k',keyLabel(s.k,s.m)));
-    pick.addEventListener('click', function(){ toggleSeq(s.id); });
-    var tools=el('div','tools');
-    tools.appendChild(toolBtn('✎','Editar nome ou tom', function(){ beginEdit(s.id); }));
-    tools.appendChild(toolBtn('✕','Remover do repertório', function(){ removeSong(s.id); }));
-    li.appendChild(pick); li.appendChild(tools); ol.appendChild(li);
-  });
+  if(!q){
+    sug.hidden=true;
+    sum.hidden=false;
+    $('#libCount').textContent = n===0 ? 'Nenhuma música cadastrada' : (n===1 ? '1 música cadastrada' : n+' músicas cadastradas');
+    var tg=$('#btnLibToggle'); tg.hidden = n===0; tg.textContent = libExpanded ? 'Recolher' : 'Ver todas'; tg.setAttribute('aria-expanded', libExpanded?'true':'false');
+    box.classList.toggle('scroll', libExpanded && n>6);
+    if(!libExpanded){ return; }
+    sortedList().forEach(function(s){ ol.appendChild(songRow(s)); });
+    return;
+  }
+  sum.hidden=true; box.classList.remove('scroll');
+  var list=sortedList().filter(function(s){ return hit(s.t,q) || (s.a && hit(s.a,q)); });
+  if(!list.length) ol.appendChild(el('li','empty', n ? 'Nenhuma música cadastrada com esse nome.' : 'Repertório vazio.'));
+  else list.forEach(function(s){ ol.appendChild(songRow(s)); });
+  var cm = qq.length>=2 ? catalogMatches(q) : [];
+  sug.hidden = !cm.length;
+  cm.forEach(function(c){ sl.appendChild(sugRow(c)); });
+}
+function addFromCatalog(c){
+  var s={id:newId(), t:c.t.slice(0,60), a:c.a.slice(0,60), k:c.k, m:c.m};
+  state.setlist.push(s);
+  state.seq.push(s.id);
+  ensureCurrent();
+  save(); render();
+  flash('“'+s.t+'” entrou na lista em '+keyLabel(s.k,s.m)+' (tom original) e é a '+state.seq.length+'ª da sequência. Se vocês tocam em outro tom, use o ✎.');
+}
+var flashTimer=0;
+function flash(msg){
+  var f=$('#flash'); f.textContent=msg; f.hidden=false;
+  if(flashTimer) clearTimeout(flashTimer);
+  flashTimer=setTimeout(function(){ f.hidden=true; }, 5000);
 }
 $('#search').addEventListener('input', function(){ query=this.value; renderLibrary(); });
 $('#search').addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); this.blur(); } });
 $('#btnSearchClear').addEventListener('click', function(){ query=''; $('#search').value=''; renderLibrary(); $('#search').focus(); });
+$('#btnLibToggle').addEventListener('click', function(){ libExpanded=!libExpanded; renderLibrary(); });
 $('#btnAddFromSearch').addEventListener('click', function(){ cancelEdit(); $('#addTitle').value=query.trim(); $('#addTitle').focus(); });
 $('#btnClearSeq').addEventListener('click', clearSeq);
 
@@ -1108,47 +1325,49 @@ var editId=null;
 function beginEdit(id){
   var s=songById(id); if(!s) return;
   editId=id;
-  $('#addTitle').value=s.t; $('#addKey').value=String(s.k); $('#addMode').value=s.m;
+  $('#addTitle').value=s.t; $('#addArtist').value=s.a||''; $('#addKey').value=String(s.k); $('#addMode').value=s.m;
   $('#btnAdd').textContent='Salvar'; $('#btnCancelEdit').hidden=false;
+  $('#addForm').scrollIntoView({block:'center'});
   $('#addTitle').focus();
 }
 function cancelEdit(){
   editId=null;
-  $('#addTitle').value=''; $('#btnAdd').textContent='Adicionar'; $('#btnCancelEdit').hidden=true;
+  $('#addTitle').value=''; $('#addArtist').value=''; $('#btnAdd').textContent='Adicionar'; $('#btnCancelEdit').hidden=true;
 }
 $('#btnCancelEdit').addEventListener('click', cancelEdit);
 $('#addForm').addEventListener('submit', function(e){
   e.preventDefault();
   var t=$('#addTitle').value.trim(); if(!t) return;
+  var a=$('#addArtist').value.trim().slice(0,60);
   var k=clamp(parseInt($('#addKey').value,10)||0,0,11), m=MODES[$('#addMode').value] ? $('#addMode').value : 'maior';
   var s = editId ? songById(editId) : null;
   if(s){
-    s.t=t.slice(0,60); s.k=k; s.m=m;
+    s.t=t.slice(0,60); s.k=k; s.m=m; if(a) s.a=a; else delete s.a;
     if(state.curId===s.id && !state.free && !engine.playing){ state.key=k; state.mode=m; }
     cancelEdit();
   }else{
-    state.setlist.push({id:newId(), t:t.slice(0,60), k:k, m:m});
-    $('#addTitle').value='';
+    var ns={id:newId(), t:t.slice(0,60), k:k, m:m}; if(a) ns.a=a;
+    state.setlist.push(ns);
+    $('#addTitle').value=''; $('#addArtist').value='';
+    flash('“'+ns.t+'” cadastrada em '+keyLabel(k,m)+'. Toque nela para pôr na sequência.');
   }
   save(); render();
 });
 function listToText(){
-  return sortedList().map(function(s){ return s.t+' | '+NAMES[s.k]+(s.m==='menor'?'m':(s.m==='aberto'?' (aberto)':'')); }).join('\n');
+  return sortedList().map(function(s){ return s.t+' | '+NAMES[s.k]+(s.m==='menor'?'m':(s.m==='aberto'?' (aberto)':''))+(s.a?' | '+s.a:''); }).join('\n');
 }
 function textToList(txt){
   var out=[];
   txt.split(/\r?\n/).forEach(function(line){
     line=line.trim(); if(!line) return;
     var parts=line.split('|'); if(parts.length<2) return;
-    var t=parts[0].trim(), kk=parts[1].trim();
-    var m='maior';
-    if(/aberto/i.test(kk)){ m='aberto'; kk=kk.replace(/\(?aberto\)?/i,'').trim(); }
-    var mm=kk.match(/^([A-Ga-g])([#♯b♭]?)\s*(m)?$/);
-    if(!mm) return;
-    var base={c:0,d:2,e:4,f:5,g:7,a:9,b:11}[mm[1].toLowerCase()];
-    if(mm[2]==='#'||mm[2]==='♯') base+=1; if(mm[2]==='b'||mm[2]==='♭') base-=1;
-    if(mm[3]) m='menor';
-    out.push({t:t.slice(0,60), k:(base+12)%12, m:m});
+    var t=parts[0].trim(), kk=parts[1].trim(), a=parts.length>2 ? parts[2].trim() : '';
+    var aberto=false;
+    if(/aberto/i.test(kk)){ aberto=true; kk=kk.replace(/\(?aberto\)?/i,'').trim(); }
+    var pk=parseKey(kk); if(!pk) return;
+    var song={t:t.slice(0,60), k:pk.k, m: aberto ? 'aberto' : pk.m};
+    if(a) song.a=a.slice(0,60);
+    out.push(song);
   });
   return out;
 }
@@ -1167,7 +1386,7 @@ $('#btnRestore').addEventListener('click', function(){
   if(!window.confirm('Voltar ao repertório inicial? As músicas cadastradas por você serão apagadas.')) return;
   state.setlist=clone(DEFAULT_SETLIST); state.seq=DEFAULT_SEQ.slice(); state.curId=null; state.resumeIdx=null; cancelEdit(); ensureCurrent(); save(); render();
 });
-$('#ioText').placeholder='Uma música por linha: Nome | Tom\nExemplos: Galileu | A#m · Canção do Céu | F# · Quebrantado | C (aberto)';
+$('#ioText').placeholder='Uma música por linha: Nome | Tom | Cantor (opcional)\nExemplos: Galileu | A#m | Fernandinho · Canção do Céu | F# · Quebrantado | C (aberto)';
 
 /* ---------- Transporte ---------- */
 $('#btnPlay').addEventListener('click', function(){ if(engine.playing) playKey(state.key,state.mode,{dur:Math.min(state.settings.xfade,4)}); else start(); });
