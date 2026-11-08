@@ -188,7 +188,6 @@ main{display:grid;gap:18px;margin-top:18px}
 .search input::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none}
 .search .btn.small{min-height:46px;min-width:46px}
 .search-more{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;font-size:.9rem}
-.search-more a{color:var(--amber)}
 /* Repertório compacto: resumo com contagem; a lista completa só aparece ao pedir, numa caixa rolável */
 .lib-summary{display:flex;align-items:center;justify-content:space-between;gap:10px;color:var(--parch-dim);font-size:.9rem}
 #libBox.scroll{max-height:55vh;overflow:auto;-webkit-overflow-scrolling:touch;padding-right:2px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding-top:6px;padding-bottom:6px}
@@ -340,7 +339,6 @@ body.palco .song .mark{width:36px;height:36px;font-size:1rem}
           <ol class="setlist" id="suglist" aria-label="Sugestões"></ol>
         </div>
         <div class="search-more" id="searchMore" hidden>
-          <a id="searchWeb" href="#" target="_blank" rel="noopener">Ver o tom original na internet ↗</a>
           <button class="btn small" id="btnAddFromSearch" type="button">Cadastrar</button>
         </div>
         <form class="addform" id="addForm" autocomplete="off">
@@ -386,7 +384,6 @@ body.palco .song .mark{width:36px;height:36px;font-size:1rem}
         <ul class="plain">
           <li><b>Pedal passa-página Bluetooth</b> (o mesmo que músicos usam com tablet): pareia no celular como teclado e já funciona aqui sem configurar nada. Seta para a direita ou Page Down = próxima música; para a esquerda ou Page Up = anterior.</li>
           <li><b>Pedal MIDI</b> (USB com cabo OTG, ou Bluetooth MIDI): escolha a ação abaixo, toque em Aprender e pise no botão.</li>
-          <li>O Cube Baby não envia comandos pelo Bluetooth dele (só recebe áudio), então ele não controla o app.</li>
         </ul>
         <div class="midi-row">
           <select id="midiAction" aria-label="Ação para vincular"></select>
@@ -426,7 +423,6 @@ body.palco .song .mark{width:36px;height:36px;font-size:1rem}
           <li><b>Cabo:</b> saída do celular (P2, 3,5 mm) para uma caixa direta (DI) ou direto num canal de linha estéreo da mesa. Peça um canal só para o pad: assim quem opera a mesa controla pad e violão separados.</li>
           <li><b>Nível:</b> ajuste o fader até o medidor ficar no alto da faixa verde (por volta de −15 dB). O resto se acerta na mesa.</li>
           <li><b>Na mesa:</b> filtro de graves (HPF) perto de 100 Hz no canal do pad; o pad fica abaixo das vozes e do violão. Mande um pouco para o retorno.</li>
-          <li><b>Sem canal livre?</b> O Cube Baby AC recebe áudio por Bluetooth. Funciona, mas pad e violão saem juntos no mesmo canal.</li>
         </ul>
       </section>
     </div>
@@ -581,11 +577,37 @@ var CATALOG_RAW = [
   'Zelo|AC Music|D',
   'Tua Alegria|Drops INA|B',
   'Eu Te Vejo em Tudo|Casa Worship|Ab',
-  'Caia Fogo|Sarah Oliveira e BRAVE|F'
+  'Caia Fogo|Sarah Oliveira e BRAVE|F',
+  'Ressuscita-me|Aline Barros|D',
+  'Sonda-me, Usa-me|Aline Barros|C',
+  'Santidade|Aline Barros|Bb',
+  'Poder pra Salvar|Aline Barros|E',
+  'Cubra-me|Aline Barros|E',
+  '1 Coríntios 13|Aline Barros|A',
+  'Muralha|Aline Barros|Em',
+  'Romper|Aline Barros|B',
+  'Sonda-me, Usa-me / Tua Graça Me Basta / Poderoso Deus|Morada|E',
+  'Deus de Promessas|Toque no Altar|C',
+  'Deus do Impossível|Toque no Altar|F',
+  'O Que Dizer|Toque no Altar|A',
+  'Abro Mão|Toque no Altar|F#m',
+  'Atos 2|Gabriela Rocha|Em',
+  'Santo pra Sempre|Gabriel Guedes|Db',
+  'Santo Espírito|Gabriel Guedes|E',
+  'Eterno Presente|Gabriel Guedes|A',
+  'Ninguém Explica Deus|Preto no Branco|D',
+  'Ninguém Explica Deus (ao vivo, com Gabriela Rocha)|Preto no Branco|G',
+  'Ninguém Explica Deus|Harmonia do Samba|E',
+  'Fala Deus|Preto no Branco|C',
+  'Se Tiveres Fé|Fernandinho|E',
+  'Sorria|Fernandinho|A',
+  'Fogo do Céu|Fernandinho|Am',
+  'Pai Nosso|Fernandinho|Am',
+  'Temos Que Ser Um|Fernandinho|Bm'
 ];
 
 /* ---------- Repertório inicial ---------- */
-var APP_VERSION = '1.2';
+var APP_VERSION = '1.3';
 var DEFAULT_SETLIST = [
   {id:'d1', t:'Galileu',                           a:'Fernandinho',    k:10, m:'menor'},
   {id:'d2', t:'Canção do Céu',                     a:'Mauro Henrique', k:6,  m:'maior'},
@@ -1267,11 +1289,7 @@ function renderLibrary(){
   var qq=query.trim(), q=norm(qq), n=state.setlist.length;
   $('#btnSearchClear').hidden=!qq;
   var more=$('#searchMore'); more.hidden = qq.length<2;
-  if(!more.hidden){
-    $('#searchWeb').href='https://www.google.com/search?q='+encodeURIComponent(qq+' cifra tom original');
-    $('#searchWeb').textContent='Ver o tom original de “'+qq+'” na internet ↗';
-    $('#btnAddFromSearch').textContent='Cadastrar “'+qq+'” à mão';
-  }
+  if(!more.hidden){ $('#btnAddFromSearch').textContent='Cadastrar “'+qq+'” à mão'; }
   if(!q){
     sug.hidden=true;
     sum.hidden=false;
