@@ -489,13 +489,22 @@ var MODES = {
 function hueOf(pc){ return ((pc*7)%12)*30; }
 function mtof(m){ return 440*Math.pow(2,(m-69)/12); }
 
-/* ---------- Presets de som ---------- */
+/* ---------- Presets de som ----------
+   Cada preset: filtro (dois estágios, 24 dB/oit), desafinação do uníssono (cents), osciladores por nota
+   [forma, posição, ganho] — posição 'u' = cinco vozes em uníssono espalhadas no estéreo (UNISON); número = voz única
+   com esse fator de desafinação —, peso do sub, dos agudos e da nona, largura, reverb, alcance do LFO do filtro
+   (controle "Movimento interno"), vibrato (Hz) e quanto da oitava acima ("shimmer") entra no reverb. */
 var PRESETS = {
-  quente:  {label:'Quente',  desc:'analógico, redondo',        cutoff:950,  q:0.8, detune:7,  oscs:[['sawtooth',-1,0.5],['sawtooth',1,0.5],['triangle',0,0.65]], sub:0.5,  high:0.16, width:0.4,  reverb:0.45, lfoDepth:260, vib:0,   shimmer:false},
-  cristal: {label:'Cristal', desc:'claro, com brilho no alto', cutoff:2300, q:0.6, detune:5,  oscs:[['sawtooth',-1,0.34],['sawtooth',1,0.34],['sine',0,0.55]],     sub:0.32, high:0.42, width:0.5,  reverb:0.6,  lfoDepth:200, vib:0,   shimmer:true},
-  cordas:  {label:'Cordas',  desc:'conjunto, com vibrato leve',cutoff:1700, q:0.7, detune:10, oscs:[['sawtooth',-1,0.42],['sawtooth',1,0.42],['sawtooth',0,0.3]],  sub:0.28, high:0.2,  width:0.65, reverb:0.4,  lfoDepth:150, vib:4.6, shimmer:false},
-  profundo:{label:'Profundo',desc:'escuro, cinematográfico',   cutoff:680,  q:0.9, detune:6,  oscs:[['sawtooth',-1,0.45],['sawtooth',1,0.45],['triangle',0,0.75]], sub:0.75, high:0.08, width:0.35, reverb:0.55, lfoDepth:360, vib:0,   shimmer:false}
+  quente:  {label:'Quente',  desc:'analógico, quente, com ar',     cutoff:1200, q:0.7, detune:18, oscs:[['sawtooth','u',0.42],['triangle',0,0.6]], sub:0.5,  high:0.2,  ninth:0.18, width:0.5,  reverb:0.5,  lfoDepth:260, vib:0,   shimmer:0.5},
+  cristal: {label:'Cristal', desc:'claro, com shimmer no alto',    cutoff:2300, q:0.6, detune:14, oscs:[['sawtooth','u',0.3],['sine',0,0.5]],       sub:0.32, high:0.42, ninth:0.2,  width:0.6,  reverb:0.6,  lfoDepth:200, vib:0,   shimmer:0.9},
+  cordas:  {label:'Cordas',  desc:'conjunto, com vibrato leve',    cutoff:1700, q:0.7, detune:20, oscs:[['sawtooth','u',0.36],['sawtooth',0,0.25]],  sub:0.28, high:0.2,  ninth:0,    width:0.65, reverb:0.4,  lfoDepth:150, vib:4.6, shimmer:0.25},
+  profundo:{label:'Profundo',desc:'escuro, cinematográfico',       cutoff:700,  q:0.8, detune:15, oscs:[['sawtooth','u',0.4],['triangle',0,0.7]],   sub:0.75, high:0.08, ninth:0,    width:0.4,  reverb:0.55, lfoDepth:360, vib:0,   shimmer:0.3}
 };
+/* Uníssono: cinco vozes com desafinações irregulares (os batimentos entre elas nunca se alinham num pulso só —
+   duas vozes batiam fundo a cada segundo), ganhos e posições no estéreo. */
+var UNISON = [{d:-1,g:0.8,p:-0.8},{d:-0.42,g:0.9,p:0.45},{d:0,g:1,p:0},{d:0.35,g:0.9,p:-0.45},{d:1,g:0.8,p:0.8}];
+/* Alcance do "Movimento interno": LFO do filtro (× lfoDepth do preset, em cents) e LFO de amplitude por nota (fração do nível). */
+var MOTION = {filter:1.4, amp:0.15};
 
 /* ---------- Catálogo embutido: tom da gravação original (fichas "Original Master" do MultiTracks e cifras oficiais) ----------
    Formato: Título|Artista|Tom. Serve para sugerir o tom; o tom em que a igreja toca é o que fica no repertório (editável). */
@@ -643,7 +652,7 @@ var CATALOG_RAW = [
 ];
 
 /* ---------- Repertório inicial ---------- */
-var APP_VERSION = '1.9';
+var APP_VERSION = '2.0';
 var DEFAULT_SETLIST = [
   {id:'d1', t:'Galileu',                           a:'Fernandinho',    k:10, m:'menor'},
   {id:'d2', t:'Canção do Céu',                     a:'Mauro Henrique', k:6,  m:'maior'},
@@ -654,7 +663,7 @@ var DEFAULT_SETLIST = [
   {id:'d7', t:'Quebrantado',                       a:'Vineyard',       k:0,  m:'maior'}
 ];
 var DEFAULT_SEQ = ['d1','d2','d3','d4','d5','d6','d7'];
-var DEFAULT_SETTINGS = {preset:'quente', volume:0.8, fadeIn:10, xfade:10, bright:0.5, reverb:0.45, motion:0.5, width:0.4, lookupUrl:'', engine:8};
+var DEFAULT_SETTINGS = {preset:'quente', volume:0.8, fadeIn:10, xfade:10, bright:0.5, reverb:0.5, motion:0.35, width:0.5, lookupUrl:'', engine:9};
 
 /* Dois conjuntos: o repertório (todas as músicas cadastradas, cada uma com o tom em que a igreja toca)
    e a sequência de hoje (ids do repertório, na ordem em que foram tocados). Próxima/Anterior andam pela sequência. */
@@ -690,11 +699,11 @@ function load(){
     var d = JSON.parse(raw);
     if(d.settings){ for(var k in DEFAULT_SETTINGS){ if(typeof d.settings[k]==='number' || typeof d.settings[k]==='string') state.settings[k]=d.settings[k]; } }
     if(ver===1){ state.settings.fadeIn=Math.max(state.settings.fadeIn,DEFAULT_SETTINGS.fadeIn); state.settings.xfade=Math.max(state.settings.xfade,DEFAULT_SETTINGS.xfade); }
-    // motor 8 = o motor original de volta. Quem passou pelas versões 1.6–1.8 (motor 6/7) teve movimento, largura e
-    // preset trocados por aquelas versões: volta aos padrões originais. Quem vem da 1.5 ou antes mantém o que tinha.
+    // motor 9 (2.0): o alcance do "Movimento interno" mudou de escala e a largura/reverb têm novos padrões —
+    // quem vem de qualquer versão anterior recebe os padrões novos desses três controles (o resto fica como estava)
     var eng = d.settings && typeof d.settings.engine==='number' ? d.settings.engine : 0;
-    if(eng>=6 && eng<8){ state.settings.motion=DEFAULT_SETTINGS.motion; state.settings.width=DEFAULT_SETTINGS.width; state.settings.reverb=DEFAULT_SETTINGS.reverb; if(state.settings.preset==='piano') state.settings.preset='quente'; }
-    state.settings.engine=8;
+    if(eng<9){ state.settings.motion=DEFAULT_SETTINGS.motion; state.settings.width=DEFAULT_SETTINGS.width; state.settings.reverb=DEFAULT_SETTINGS.reverb; if(state.settings.preset==='piano') state.settings.preset='quente'; }
+    state.settings.engine=9;
     if(!PRESETS[state.settings.preset]) state.settings.preset='quente';
     state.settings.fadeIn=clamp(state.settings.fadeIn,2,40); state.settings.xfade=clamp(state.settings.xfade,2,40);
     if(Array.isArray(d.setlist)) state.setlist = sanitizeList(d.setlist);
@@ -784,16 +793,23 @@ Engine.prototype.resume = function(){
   if(!this.ctx) return;
   if(this.ctx.state!=='running'){ try{ var p=this.ctx.resume(); if(p && p.catch) p.catch(function(){}); }catch(e){} }
 };
+/* Cadeia: vozes → bus → chorus → [shimmer] → reverb → compressor de cola → volume → limitador de segurança → medidor → saída.
+   Chorus no estilo Juno: duas linhas de atraso moduladas a ~0,5 Hz com pouca profundidade — varre rápido e raso,
+   sem o balanço lento de nível que um chorus de 0,1 Hz produz. */
+var BUS_GAIN = 0.7;
+var CHORUS = {rateL:0.5, rateR:0.71, depthL:0.0008, depthR:0.001, baseL:0.0145, baseR:0.0212};
+var GLUE = {threshold:-12, knee:10, ratio:3, attack:0.02, release:0.3, makeup:1.0};
+var SHIMMER_FB = 0.5;
 Engine.prototype.build = function(){
-  var c=this.ctx;
-  this.bus = c.createGain(); this.bus.gain.value=1;
+  var c=this.ctx, t0=c.currentTime+0.05;
+  this.bus = c.createGain(); this.bus.gain.value=BUS_GAIN;
 
   // Chorus / ensemble: seco + duas linhas de atraso moduladas, abertas em estéreo
   this.chDry = c.createGain(); this.chWet = c.createGain();
   this.dL = c.createDelay(0.1); this.dR = c.createDelay(0.1);
-  this.dL.delayTime.value=0.0145; this.dR.delayTime.value=0.0212;
-  this.lfoL = c.createOscillator(); this.lfoL.frequency.value=0.11; this.lfoLg=c.createGain(); this.lfoLg.gain.value=0.0024;
-  this.lfoR = c.createOscillator(); this.lfoR.frequency.value=0.163; this.lfoRg=c.createGain(); this.lfoRg.gain.value=0.0029;
+  this.dL.delayTime.value=CHORUS.baseL; this.dR.delayTime.value=CHORUS.baseR;
+  this.lfoL = c.createOscillator(); this.lfoL.frequency.value=CHORUS.rateL; this.lfoLg=c.createGain(); this.lfoLg.gain.value=CHORUS.depthL;
+  this.lfoR = c.createOscillator(); this.lfoR.frequency.value=CHORUS.rateR; this.lfoRg=c.createGain(); this.lfoRg.gain.value=CHORUS.depthR;
   this.lfoL.connect(this.lfoLg); this.lfoLg.connect(this.dL.delayTime);
   this.lfoR.connect(this.lfoRg); this.lfoRg.connect(this.dR.delayTime);
   this.panL = c.createStereoPanner ? c.createStereoPanner() : c.createGain();
@@ -803,25 +819,64 @@ Engine.prototype.build = function(){
   this.bus.connect(this.dR); this.dR.connect(this.panR); this.panR.connect(this.chWet);
   this.fx = c.createGain(); this.chDry.connect(this.fx); this.chWet.connect(this.fx);
 
+  // Shimmer: uma cópia uma oitava acima entra só no reverb, e parte da cauda do reverb volta ao deslocador —
+  // a cada volta sobe mais uma oitava e some um pouco: a cascata de "ar" dos pads de louvor
+  this.shifter = makeShifter(c, 2, t0);
+  this.shimG = c.createGain(); this.shimG.gain.value=0;
+  this.shimFb = c.createGain(); this.shimFb.gain.value=0;
+  this.fx.connect(this.shifter.input); this.shifter.output.connect(this.shimG);
+
   // Reverb por convolução com resposta gerada (cauda longa que escurece)
   this.rvDry = c.createGain(); this.rvWet = c.createGain();
-  this.pre = c.createDelay(0.2); this.pre.delayTime.value=0.028;
-  this.conv = c.createConvolver(); this.conv.buffer = this.makeIR(6.5);
+  this.pre = c.createDelay(0.2); this.pre.delayTime.value=0.04;
+  this.conv = c.createConvolver(); this.conv.buffer = this.makeIR(8);
   this.fx.connect(this.rvDry);
-  this.fx.connect(this.pre); this.pre.connect(this.conv); this.conv.connect(this.rvWet);
+  this.fx.connect(this.pre); this.shimG.connect(this.pre); this.pre.connect(this.conv); this.conv.connect(this.rvWet);
+  this.conv.connect(this.shimFb); this.shimFb.connect(this.shifter.input);   // realimentação (há DelayNodes no laço)
 
-  // Limitador, volume, medidor
-  this.limiter = c.createDynamicsCompressor();
-  this.limiter.threshold.value=-6; this.limiter.knee.value=6; this.limiter.ratio.value=12;
-  this.limiter.attack.value=0.004; this.limiter.release.value=0.3;
-  this.rvDry.connect(this.limiter); this.rvWet.connect(this.limiter);
+  // Nivelador (como a masterização dos pads prontos: achata o tremor dos batimentos e os balanços lentos de nível,
+  // deixando o movimento no timbre), ganho de compensação, volume, limitador de segurança, medidor
+  this.glue = c.createDynamicsCompressor();
+  this.glue.threshold.value=GLUE.threshold; this.glue.knee.value=GLUE.knee; this.glue.ratio.value=GLUE.ratio;
+  this.glue.attack.value=GLUE.attack; this.glue.release.value=GLUE.release;
+  this.rvDry.connect(this.glue); this.rvWet.connect(this.glue);
+  this.makeup = c.createGain(); this.makeup.gain.value=GLUE.makeup;
+  this.glue.connect(this.makeup);
   this.master = c.createGain(); this.master.gain.value=0.001;
-  this.limiter.connect(this.master);
+  this.makeup.connect(this.master);
+  this.limiter = c.createDynamicsCompressor();
+  this.limiter.threshold.value=-1; this.limiter.knee.value=0; this.limiter.ratio.value=20;
+  this.limiter.attack.value=0.001; this.limiter.release.value=0.1;
+  this.master.connect(this.limiter);
+  // o DynamicsCompressor do navegador compensa o ganho sozinho (0 dBFS na entrada vira ~0 dBFS na saída), então um
+  // corte fixo de −3 dB depois dele é o que garante que nada passe de 0 dBFS
+  this.trim = c.createGain(); this.trim.gain.value=0.7;
+  this.limiter.connect(this.trim);
   this.analyser = c.createAnalyser(); this.analyser.fftSize=1024; this.analyser.smoothingTimeConstant=0.6;
-  this.master.connect(this.analyser); this.analyser.connect(c.destination);
+  this.trim.connect(this.analyser); this.analyser.connect(c.destination);
   this.lfoL.start(); this.lfoR.start();
   this.applySettings();
 };
+/* Deslocador de altura granular: duas linhas de atraso cujo tempo cai em rampa — o som é lido mais rápido do que
+   entra, subindo de altura — e janelas em cosseno que se revezam, zerando exatamente na hora do salto da rampa.
+   Rampa e janela são buffers em loop (amostra a amostra). ratio 2 = uma oitava acima. O tremor dos grãos (8 Hz)
+   some dentro do reverb. */
+function makeShifter(c, ratio, t0){
+  var F=8, T=1/F, N=Math.round(c.sampleRate*T), input=c.createGain(), output=c.createGain();
+  var G=-(ratio-1)*T/2;                 // a rampa vai de −1 a 1 em T → d(atraso)/dt = 2G/T = −(ratio−1)
+  var D0=Math.abs(G)+0.004;             // atraso base: a rampa nunca chega a zero
+  var ramp=c.createBuffer(1,N,c.sampleRate), win=c.createBuffer(1,N,c.sampleRate), rd=ramp.getChannelData(0), wd=win.getChannelData(0);
+  for(var i=0;i<N;i++){ rd[i]=-1+2*i/N; wd[i]=0.5-0.5*Math.cos(2*Math.PI*i/N); }   // a janela é zero onde a rampa salta
+  function loopSrc(buf, when){ var s=c.createBufferSource(); s.buffer=buf; s.loop=true; s.start(when); return s; }
+  for(var k=0;k<2;k++){
+    var when=t0 + k*T/2;
+    var d=c.createDelay(0.5); d.delayTime.value=D0;
+    var rg=c.createGain(); rg.gain.value=G; loopSrc(ramp, when).connect(rg); rg.connect(d.delayTime);
+    var w=c.createGain(); w.gain.value=0; loopSrc(win, when).connect(w.gain);
+    input.connect(d); d.connect(w); w.connect(output);
+  }
+  return {input:input, output:output};
+}
 Engine.prototype.makeIR = function(seconds){
   var c=this.ctx, sr=c.sampleRate, len=Math.floor(sr*seconds);
   var buf=c.createBuffer(2,len,sr);
@@ -829,7 +884,7 @@ Engine.prototype.makeIR = function(seconds){
     var d=buf.getChannelData(ch), lp=0, energy=0;
     for(var i=0;i<len;i++){
       var t=i/len;
-      var a = 0.55*(1-t)+0.05;              // passa-baixas que fecha com o tempo (cauda escurece)
+      var a = 0.6*(1-t)+0.08;               // passa-baixas que fecha com o tempo (cauda escurece, mas guarda ar para o shimmer)
       var n = Math.random()*2-1;
       lp += (n-lp)*a;
       var env = Math.exp(-6.2*t);           // ~-54 dB no fim
@@ -857,12 +912,16 @@ Engine.prototype.applySettings = function(){
   var r=S.reverb;
   this.rvDry.gain.setTargetAtTime(1-0.55*r, now, 0.05);
   this.rvWet.gain.setTargetAtTime(1.15*r, now, 0.05);
+  var shimG = P.shimmer*(0.8+r);
+  this.shimG.gain.setTargetAtTime(shimG, now, 0.05);
+  this.shimFb.gain.setTargetAtTime(P.shimmer>0 ? SHIMMER_FB*(0.6+0.4*r)/Math.max(1,shimG) : 0, now, 0.05);   // ganho do laço ≤ 0,45: sempre decai
   var cutoff=this.cutoffFor(P,S);
   for(var i=0;i<this.all.length;i++){
     var v=this.all[i];
-    v.filter.frequency.setTargetAtTime(cutoff, now, 0.1);
-    v.fLfoG.gain.setTargetAtTime(P.lfoDepth*2*S.motion, now, 0.1);
-    for(var j=0;j<v.ampLfos.length;j++) v.ampLfos[j].g.gain.setTargetAtTime(v.ampLfos[j].base*0.3*S.motion, now, 0.1);
+    v.f1.frequency.setTargetAtTime(cutoff, now, 0.1); v.f2.frequency.setTargetAtTime(cutoff, now, 0.1);
+    v.fLfoG.gain.setTargetAtTime(P.lfoDepth*MOTION.filter*S.motion, now, 0.1);
+    for(var j=0;j<v.ampLfos.length;j++) v.ampLfos[j].g.gain.setTargetAtTime(v.ampLfos[j].base*MOTION.amp*S.motion, now, 0.1);
+    for(var k=0;k<v.pans.length;k++) v.pans[k].node.pan.setTargetAtTime(v.pans[k].side*S.width, now, 0.1);
   }
 };
 Engine.prototype.unmute = function(){
@@ -920,35 +979,46 @@ Engine.prototype.level = function(){
   return rms>0 ? 20*Math.log10(rms) : -Infinity;
 };
 
-/* Uma voz = um acorde de pad num tom. Entra e sai só por fade. */
+/* Uma voz = um acorde de pad num tom. Entra e sai só por fade.
+   O corpo de cada nota é um uníssono de cinco dentes de serra (UNISON) espalhadas no estéreo; sub e agudos são
+   vozes únicas. Filtro passa-baixas em dois estágios (24 dB/oit) com LFO lento no brilho e LFO lento de amplitude
+   por nota — o "Movimento interno" regula os dois. Cada oscilador começa numa fase aleatória. */
 function Voice(engine, pc, mode, P, S){
   var c=engine.ctx; this.c=c; this.engine=engine; this.pc=pc; this.mode=mode; this.hue=hueOf(pc); this.seed=Math.random()*6.28;
   this.out=c.createGain(); this.out.gain.value=0;
-  this.filter=c.createBiquadFilter(); this.filter.type='lowpass'; this.filter.Q.value=P.q; this.filter.frequency.value=engine.cutoffFor(P,S);
-  this.filter.connect(this.out); this.out.connect(engine.bus);
+  var cutoff=engine.cutoffFor(P,S);
+  this.f1=c.createBiquadFilter(); this.f1.type='lowpass'; this.f1.Q.value=P.q; this.f1.frequency.value=cutoff;
+  this.f2=c.createBiquadFilter(); this.f2.type='lowpass'; this.f2.Q.value=P.q; this.f2.frequency.value=cutoff;
+  this.f1.connect(this.f2); this.f2.connect(this.out); this.out.connect(engine.bus);
   this.fLfo=c.createOscillator(); this.fLfo.frequency.value=0.05+Math.random()*0.05;
-  this.fLfoG=c.createGain(); this.fLfoG.gain.value=P.lfoDepth*2*S.motion;
-  this.fLfo.connect(this.fLfoG); this.fLfoG.connect(this.filter.detune);
-  this.oscs=[]; this.lfos=[this.fLfo]; this.ampLfos=[];
+  this.fLfoG=c.createGain(); this.fLfoG.gain.value=P.lfoDepth*MOTION.filter*S.motion;
+  this.fLfo.connect(this.fLfoG); this.fLfoG.connect(this.f1.detune); this.fLfoG.connect(this.f2.detune);
+  this.oscs=[]; this.lfos=[this.fLfo]; this.ampLfos=[]; this.pans=[];
   if(P.vib){ this.vib=c.createOscillator(); this.vib.frequency.value=P.vib; this.vibG=c.createGain(); this.vibG.gain.value=5; this.vib.connect(this.vibG); this.lfos.push(this.vib); }
-  var notes=this.voicing(pc,mode,P);
+  var notes=this.voicing(pc,mode,P), self=this, canPan=!!c.createStereoPanner;
+  function osc(type, freq, detuneCents, gain, pan, dest){
+    var o=c.createOscillator(); o.type=type; o.frequency.value=freq; o.detune.value=detuneCents;
+    var og=c.createGain(); og.gain.value=gain; o.connect(og);
+    if(canPan && pan!==0){ var pn=c.createStereoPanner(); pn.pan.value=pan*S.width; og.connect(pn); pn.connect(dest); self.pans.push({node:pn, side:pan}); }
+    else og.connect(dest);
+    if(self.vibG) self.vibG.connect(o.detune);
+    self.oscs.push(o);
+  }
   for(var i=0;i<notes.length;i++){
-    var n=notes[i], base=n.level*0.2;
-    var ng=c.createGain(); ng.gain.value=base; ng.connect(this.filter);
+    var n=notes[i], base=n.level*0.2, f=mtof(n.midi), ds=P.detune*(n.detuneScale||1);
+    var ng=c.createGain(); ng.gain.value=base; ng.connect(this.f1);
     var al=c.createOscillator(); al.frequency.value=0.04+Math.random()*0.12;
-    var alg=c.createGain(); alg.gain.value=base*0.3*S.motion; al.connect(alg); alg.connect(ng.gain);
+    var alg=c.createGain(); alg.gain.value=base*MOTION.amp*S.motion; al.connect(alg); alg.connect(ng.gain);
     this.lfos.push(al); this.ampLfos.push({o:al,g:alg,base:base});
     var set=n.oscs||P.oscs;
     for(var j=0;j<set.length;j++){
-      var o=c.createOscillator(); o.type=set[j][0]; o.frequency.value=mtof(n.midi);
-      o.detune.value = set[j][1]*P.detune*(n.detuneScale||1) + (Math.random()-0.5)*2;
-      var og=c.createGain(); og.gain.value=set[j][2]; o.connect(og); og.connect(ng);
-      if(this.vibG) this.vibG.connect(o.detune);
-      this.oscs.push(o);
+      var sp=set[j];
+      if(sp[1]==='u'){ for(var u=0;u<UNISON.length;u++) osc(sp[0], f, UNISON[u].d*ds+(Math.random()-0.5), sp[2]*UNISON[u].g, UNISON[u].p, ng); }
+      else osc(sp[0], f, sp[1]*ds+(Math.random()-0.5)*2, sp[2], 0, ng);
     }
   }
   var t=c.currentTime;
-  for(var k=0;k<this.oscs.length;k++) this.oscs[k].start(t);
+  for(var k=0;k<this.oscs.length;k++) this.oscs[k].start(t+Math.random()*0.02);
   for(var l=0;l<this.lfos.length;l++) this.lfos[l].start(t);
   this.curve=new Float32Array([0,0]); this.t0=t; this.dur=0.001; this.fadeEnd=t;
   this.disposed=false;
@@ -964,11 +1034,11 @@ Voice.prototype.voicing = function(pc, mode, P){
     {midi:root+19, level:0.42},
     {midi:root+24, level:P.high, oscs:[['sine',0,0.7],['triangle',0,0.3]], detuneScale:0.5}
   ];
+  if(P.ninth && mode!=='menor') notes.push({midi:root+14, level:P.ninth});   // nona leve (cor dos pads de louvor)
   if(third!=null){
     notes.push({midi:root+12+third, level:0.36});
     notes.push({midi:root+24+third, level:P.high*0.55, oscs:[['sine',0,0.8]]});
   }
-  if(P.shimmer) notes.push({midi:root+31, level:P.high*0.45, oscs:[['sine',0,0.8]]});
   return notes;
 };
 Voice.prototype.currentGain = function(){
@@ -1806,7 +1876,7 @@ try{
     });
   }
 }catch(e){}
-window.atmosferaDebug = {state:state, engine:engine, PRESETS:PRESETS, SHAPES:SHAPES};   // só para testes automatizados
+window.atmosferaDebug = {state:state, engine:engine, PRESETS:PRESETS, SHAPES:SHAPES, CHORUS:CHORUS, MOTION:MOTION, UNISON:UNISON, GLUE:GLUE};   // só para testes automatizados
 })();
 </script>
 </body>

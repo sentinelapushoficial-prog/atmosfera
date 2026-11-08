@@ -10,21 +10,26 @@ Funciona como app instalável (PWA): abre sem internet depois da primeira visita
 
 ## Som
 
-- Motor de som original (o mesmo da 1.0 à 1.5, de volta na 1.9 a pedido do autor): quatro presets — Quente, Cristal,
-  Cordas, Profundo — com duas dentes de serra desafinadas por nota, sub e agudos, filtro passa-baixas com LFO lento
-  ("Movimento interno"), chorus/ensemble estéreo com duas linhas de atraso moduladas, reverb por convolução
-  (resposta gerada, 6,5 s) e compressor/limitador (−6 dB, 12:1).
-- Fades lineares em decibéis (de −50 dB até cheio), novidade da 1.6 mantida: a entrada cresce parelha, sem começar
-  alta. Troca de tom por crossfade de potência constante.
-- Segundo plano (desde a 1.6): enquanto o pad toca, um `<audio>` com 30 s de silêncio em loop toca junto, e a Media
-  Session mostra música e tom na notificação e na tela de bloqueio (Pausar, Próxima, Anterior). Se o sistema pausar
-  a mídia ou interromper o áudio, o app tenta voltar sozinho (até 8 vezes por minuto). Só para com Parar ou ao
-  fechar o app.
-- Histórico: as versões 1.6–1.8 experimentaram motores sem oscilação de nível (ensemble polifásico, shimmer,
-  síntese aditiva de piano). O código está no histórico do git (commits "Atmosfera 1.6/1.7/1.8").
-- `tests/test_audio.py` renderiza o motor num OfflineAudioContext e mede fade, ondulação, picos e equilíbrio
-  espectral (a ondulação é informativa: o motor original tem movimento por natureza); `tests/test_bg.py` confere
-  mídia/Media Session e as migrações de configurações.
+- Base: o motor original (1.0–1.5), evoluído na 2.0 na direção dos "warm pads" de louvor (os pads de Omnisphere
+  usados por Hillsong/Elevation e canais como Worship the One):
+  - corpo de cada nota em **uníssono de cinco dentes de serra** (`UNISON`, desafinações irregulares, espalhadas no
+    estéreo) em vez de duas — as duas batiam fundo a cada segundo; cinco viram textura;
+  - **filtro passa-baixas em dois estágios** (24 dB/oit) com LFO lento no brilho e LFO lento de amplitude por nota —
+    o "Movimento interno" regula os dois (`MOTION`), padrão 35;
+  - **chorus estilo Juno** (`CHORUS`, ~0,5 Hz, raso) — o chorus antigo a 0,1 Hz balançava o nível devagar;
+  - **shimmer em cascata**: cópia uma oitava acima (deslocador granular, `makeShifter`) entra no reverb, e parte da
+    cauda volta ao deslocador (`SHIMMER_FB`, ganho do laço ≤ 0,45): a cada volta sobe mais uma oitava e some;
+  - reverb por convolução de 8 s com pré-delay de 40 ms, cauda que escurece mas guarda ar;
+  - nivelador suave (`GLUE`), limitador de segurança e corte fixo de −3 dB (o DynamicsCompressor do navegador
+    compensa o ganho sozinho, então só o corte garante que nada passe de 0 dBFS);
+  - nona leve nos modos aberto e maior (`ninth`).
+- Fades lineares em decibéis (de −50 dB até cheio). Troca de tom por crossfade de potência constante.
+- Segundo plano (desde a 1.6): `<audio>` com 30 s de silêncio em loop enquanto o pad toca, Media Session com música
+  e tom (Pausar, Próxima, Anterior na tela de bloqueio) e retomada automática se o sistema pausar/interromper.
+- Histórico: 1.6–1.8 experimentaram motores sem oscilação de nível (ensemble polifásico, síntese aditiva de piano);
+  1.9 voltou ao original. Tudo no histórico do git.
+- `tests/test_audio.py` renderiza o motor num OfflineAudioContext (fade, ondulação, picos, espectro);
+  `tests/test_shifter.py` confere o shimmer; `tests/test_bg.py` mídia/Media Session e migrações.
 
 ## Publicar uma versão nova
 
