@@ -42,7 +42,16 @@ async (args) => {
   }
   let pk=0, e=0, cnt=0; for (let i=Math.floor(16*sr); i<Math.floor(26*sr); i++){ const m=0.5*(L[i]+R[i]); pk=Math.max(pk,Math.abs(m)); e+=m*m; cnt++; }
   const crest = 20*Math.log10(pk/Math.sqrt(e/cnt));
-  return {db: out, dbL: outL, peak: peak, sr: sr, crest: crest};
+  // FFT de 32768 pontos (janela Hann) sobre o regime: centroide e energia por faixa
+  function fft(re, im){ const n=re.length; for(let i=1,j=0;i<n;i++){ let bit=n>>1; for(;j&bit;bit>>=1) j^=bit; j^=bit; if(i<j){ let t=re[i]; re[i]=re[j]; re[j]=t; t=im[i]; im[i]=im[j]; im[j]=t; } }
+    for(let len=2;len<=n;len<<=1){ const ang=-2*Math.PI/len, wr=Math.cos(ang), wi=Math.sin(ang); for(let i=0;i<n;i+=len){ let cr=1, ci=0; for(let j=0;j<len/2;j++){ const ur=re[i+j], ui=im[i+j], vr=re[i+j+len/2]*cr-im[i+j+len/2]*ci, vi=re[i+j+len/2]*ci+im[i+j+len/2]*cr; re[i+j]=ur+vr; im[i+j]=ui+vi; re[i+j+len/2]=ur-vr; im[i+j+len/2]=ui-vi; const ncr=cr*wr-ci*wi; ci=cr*wi+ci*wr; cr=ncr; } } } }
+  const NF=32768, off=Math.floor(20*sr), re=new Float64Array(NF), im=new Float64Array(NF);
+  for(let i=0;i<NF;i++){ const wnd=0.5-0.5*Math.cos(2*Math.PI*i/NF); re[i]=0.5*(L[off+i]+R[off+i])*wnd; }
+  fft(re, im);
+  let num=0, den=0, eLow=0, eMid=0, eHigh=0; const binHz=sr/NF;
+  for(let b=1;b<NF/2;b++){ const f=b*binHz, p=re[b]*re[b]+im[b]*im[b]; num+=f*p; den+=p; if(f<250) eLow+=p; else if(f<1000) eMid+=p; else eHigh+=p; }
+  const centroid=num/den, tot=eLow+eMid+eHigh;
+  return {db: out, dbL: outL, peak: peak, sr: sr, crest: crest, centroid: centroid, low: eLow/tot, mid: eMid/tot, high: eHigh/tot};
 }
 """
 
@@ -68,7 +77,7 @@ async def main():
     try:
         async with async_playwright() as pw:
             b = await pw.chromium.launch(args=["--autoplay-policy=no-user-gesture-required"])
-            for preset, mode, worst in [("quente","aberto",False), ("quente","maior",False), ("cristal","maior",False), ("cordas","menor",False), ("profundo","aberto",False), ("profundo","maior",True), ("cristal","aberto",True)]:
+            for preset, mode, worst in [("piano","aberto",False), ("piano","maior",False), ("piano","menor",False), ("cristal","maior",False), ("cordas","menor",False), ("profundo","aberto",False), ("piano","maior",True), ("cristal","aberto",True)]:
                 ctx = await b.new_context(viewport={"width": 390, "height": 844})
                 pg = await ctx.new_page()
                 errors = []
@@ -93,7 +102,7 @@ async def main():
                 fall = db[int((STOP_AT+0.5)/win):int((STOP_AT+FADE)/win)]
                 nonmono_fall = sum(1 for i in range(1, len(fall)) if fall[i] > fall[i-1] + 0.5)
                 tail = at(STOP_AT + FADE + 3) - ref
-                print(f"\n== {preset} / {mode}{' / tudo no máximo' if worst else ''} ==  regime {fmt(ref)} dBFS (rms), pico {fmt(20*__import__('math').log10(res['peak']))} dBFS, fator de crista {fmt(res['crest'])} dB")
+                print(f"\n== {preset} / {mode}{' / tudo no máximo' if worst else ''} ==  regime {fmt(ref)} dBFS (rms), pico {fmt(20*__import__('math').log10(res['peak']))} dBFS, fator de crista {fmt(res['crest'])} dB, centroide {res['centroid']:.0f} Hz, energia <250 Hz {res['low']*100:.0f}% · 250–1k {res['mid']*100:.0f}% · >1k {res['high']*100:.0f}%")
                 print("  fade-in (dB rel. regime):", "  ".join(f"{t}s:{fmt(v)}" for t, v in prof.items()))
                 print(f"  ondulação em regime (14–{STOP_AT} s, janelas de 250 ms): mono {fmt(ripple)} dB · canal L {fmt(rippleL)} dB | quedas na subida: {nonmono} | subidas na descida: {nonmono_fall} | 3 s após o fim do fade-out: {fmt(tail)} dB")
                 if errors: print("  ERROS:", errors)

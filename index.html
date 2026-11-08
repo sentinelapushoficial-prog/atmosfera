@@ -490,14 +490,20 @@ function hueOf(pc){ return ((pc*7)%12)*30; }
 function mtof(m){ return 440*Math.pow(2,(m-69)/12); }
 
 /* ---------- Presets de som ---------- */
-/* Cada preset: filtro (24 dB/oit, dois estágios), osciladores por nota [onda, ganho] — a onda é uma das formas
-   desenhadas em makeWaves ou uma nativa —, peso do sub e dos agudos, largura, reverb, profundidade do ensemble
-   (lento e rápido, multiplicam o controle "Ensemble") e quanto da oitava acima ("shimmer") entra no reverb. */
+/* Cada preset: registro (oct: 0 = tônica entre Sol2 e Fá♯3; 1 = uma oitava acima), filtro (24 dB/oit, dois estágios),
+   timbre — ou aditivo (additive: parciais senoidais de piano, ver Voice) ou por osciladores [onda, ganho] —,
+   peso do baixo (sub, uma oitava abaixo da tônica), dos agudos (high, duas oitavas acima) e da nona (ninth),
+   largura, reverb, profundidade do ensemble (lento e rápido, multiplicam o controle "Ensemble") e quanto da
+   oitava acima ("shimmer") entra no reverb. */
 var PRESETS = {
-  quente:  {label:'Quente',  desc:'analógico, redondo',          cutoff:900,  q:0.6, oscs:[['warm',0.8],['triangle',0.35]],   sub:0.42, high:0.14, width:0.5,  reverb:0.45, ens:1.0, ensFast:0.6, shimmer:0.12},
-  cristal: {label:'Cristal', desc:'claro, com shimmer no alto',  cutoff:2200, q:0.55,oscs:[['glass',0.7],['sine',0.4]],       sub:0.28, high:0.4,  width:0.6,  reverb:0.6,  ens:0.7, ensFast:1.0, shimmer:0.4},
-  cordas:  {label:'Cordas',  desc:'ensemble de cordas, vibrato leve', cutoff:1600, q:0.6, oscs:[['string',0.8],['triangle',0.2]], sub:0.25, high:0.2,  width:0.75, reverb:0.4,  ens:1.3, ensFast:1.8, shimmer:0.1},
-  profundo:{label:'Profundo',desc:'escuro, cinematográfico',     cutoff:650,  q:0.7, oscs:[['warm',0.7],['triangle',0.6]],    sub:0.65, high:0.08, width:0.4,  reverb:0.55, ens:0.8, ensFast:0.4, shimmer:0.18}
+  piano:   {label:'Piano',   desc:'piano sustentado, claro',     oct:1, cutoff:5000, q:0.5,  additive:true, tilt:1.3, inharm:0, partials:10,
+            sub:0.42, high:0.14, ninth:0.2,  width:0.6,  reverb:0.5,  ens:0.6, ensFast:0.4, ensSplit:900,  shimmer:0.15},
+  cristal: {label:'Cristal', desc:'piano brilhante, com shimmer', oct:1, cutoff:7000, q:0.5,  additive:true, tilt:1.1, inharm:0, partials:12,
+            sub:0.35, high:0.25, ninth:0.25, width:0.7,  reverb:0.6,  ens:0.45, ensFast:0.4, ensSplit:1000, shimmer:0.4},
+  cordas:  {label:'Cordas',  desc:'ensemble de cordas, vibrato leve', oct:1, cutoff:2600, q:0.6, oscs:[['string',0.8],['triangle',0.2]],
+            sub:0.35, high:0.14, ninth:0,    width:0.75, reverb:0.4,  ens:0.7, ensFast:1.2, ensSplit:3000, shimmer:0.1},
+  profundo:{label:'Profundo',desc:'escuro, cinematográfico',     oct:0, cutoff:650,  q:0.7,  oscs:[['warm',0.7],['triangle',0.6]],
+            sub:0.55, high:0.08, ninth:0,    width:0.4,  reverb:0.55, ens:0.8, ensFast:0.4, ensSplit:20000, shimmer:0.18}
 };
 /* Formas de onda desenhadas por harmônicos (o navegador limita a banda sozinho, sem aliasing).
    warm: dente de serra que cai um pouco mais rápido no agudo, com os pares levemente contidos — redondo, analógico.
@@ -662,7 +668,7 @@ var CATALOG_RAW = [
 ];
 
 /* ---------- Repertório inicial ---------- */
-var APP_VERSION = '1.7';
+var APP_VERSION = '1.8';
 var DEFAULT_SETLIST = [
   {id:'d1', t:'Galileu',                           a:'Fernandinho',    k:10, m:'menor'},
   {id:'d2', t:'Canção do Céu',                     a:'Mauro Henrique', k:6,  m:'maior'},
@@ -673,7 +679,7 @@ var DEFAULT_SETLIST = [
   {id:'d7', t:'Quebrantado',                       a:'Vineyard',       k:0,  m:'maior'}
 ];
 var DEFAULT_SEQ = ['d1','d2','d3','d4','d5','d6','d7'];
-var DEFAULT_SETTINGS = {preset:'quente', volume:0.8, fadeIn:10, xfade:10, bright:0.5, reverb:0.45, motion:0.6, width:0.5, lookupUrl:'', engine:7};
+var DEFAULT_SETTINGS = {preset:'piano', volume:0.8, fadeIn:10, xfade:10, bright:0.5, reverb:0.5, motion:0.6, width:0.6, lookupUrl:'', engine:7};
 
 /* Dois conjuntos: o repertório (todas as músicas cadastradas, cada uma com o tom em que a igreja toca)
    e a sequência de hoje (ids do repertório, na ordem em que foram tocados). Próxima/Anterior andam pela sequência. */
@@ -711,7 +717,8 @@ function load(){
     if(ver===1){ state.settings.fadeIn=Math.max(state.settings.fadeIn,DEFAULT_SETTINGS.fadeIn); state.settings.xfade=Math.max(state.settings.xfade,DEFAULT_SETTINGS.xfade); }
     // motor 7: o controle "Movimento" virou "Ensemble" (outro significado): quem vem de versões anteriores recebe o padrão
     if(!(d.settings && d.settings.engine>=7)){ state.settings.motion=DEFAULT_SETTINGS.motion; state.settings.width=DEFAULT_SETTINGS.width; state.settings.engine=7; }
-    if(!PRESETS[state.settings.preset]) state.settings.preset='quente';
+    if(state.settings.preset==='quente') state.settings.preset='piano';
+    if(!PRESETS[state.settings.preset]) state.settings.preset='piano';
     state.settings.fadeIn=clamp(state.settings.fadeIn,2,40); state.settings.xfade=clamp(state.settings.xfade,2,40);
     if(Array.isArray(d.setlist)) state.setlist = sanitizeList(d.setlist);
     if(ver<3){
@@ -819,8 +826,18 @@ Engine.prototype.build = function(){
   this.hp = c.createBiquadFilter(); this.hp.type='highpass'; this.hp.frequency.value=40; this.hp.Q.value=0.7;
   this.bus.connect(this.hp);
 
-  // Ensemble polifásico: N linhas, fases dos LFOs igualmente espaçadas (360°/N), saídas espalhadas no estéreo
+  // Divisão por frequência (Linkwitz-Riley de 2ª ordem): graves e médios passam pelo ensemble; os agudos acima de
+  // ensSplit seguem limpos, só com o mesmo atraso base — nos parciais agudos do piano o chorus viraria tremor.
+  // (no Web Audio, o Q dos passa-baixas/altas é em dB: −6,02 dB = Q linear 0,5, o do Linkwitz-Riley de 2ª ordem)
+  this.xLp=c.createBiquadFilter(); this.xLp.type='lowpass'; this.xLp.Q.value=-6.02;
+  this.xHp=c.createBiquadFilter(); this.xHp.type='highpass'; this.xHp.Q.value=-6.02;
+  this.xInv=c.createGain(); this.xInv.gain.value=-1;            // LR2: a soma dos dois lados só fica plana com o agudo invertido
+  this.xDelay=c.createDelay(0.05); this.xDelay.delayTime.value=ENS.base;
   this.ensOut = c.createGain(); this.ensOut.gain.value=1;
+  this.hp.connect(this.xLp); this.hp.connect(this.xHp);
+  this.xHp.connect(this.xInv); this.xInv.connect(this.xDelay); this.xDelay.connect(this.ensOut);
+
+  // Ensemble polifásico: N linhas, fases dos LFOs igualmente espaçadas (360°/N), saídas espalhadas no estéreo
   this.lines=[]; this.lfos=[];
   var N=ENS.lines;
   for(var k=0;k<N;k++){
@@ -830,7 +847,7 @@ Engine.prototype.build = function(){
     sl.start(t0 + k/(N*ENS.slowHz)); fl.start(t0 + ((k*5)%N)/(N*ENS.fastHz));   // fases 0°, 60°, 120°… (o rápido em outra ordem, para não casar com o lento)
     var g=c.createGain(); g.gain.value=1/N;
     var pan=c.createStereoPanner ? c.createStereoPanner() : null;
-    this.hp.connect(d); d.connect(g);
+    this.xLp.connect(d); d.connect(g);
     if(pan){ g.connect(pan); pan.connect(this.ensOut); } else g.connect(this.ensOut);
     this.lines.push({d:d, slg:slg, flg:flg, pan:pan, side:-1+2*k/(N-1)});
     this.lfos.push(sl, fl);
@@ -911,6 +928,8 @@ Engine.prototype.applySettings = function(){
   this.rvDry.gain.setTargetAtTime(1-0.55*r, now, 0.05);
   this.rvWet.gain.setTargetAtTime(1.15*r, now, 0.05);
   this.shimG.gain.setTargetAtTime(P.shimmer*r*1.3, now, 0.05);
+  var split=P.ensSplit||20000;
+  this.xLp.frequency.setTargetAtTime(split, now, 0.1); this.xHp.frequency.setTargetAtTime(split, now, 0.1);
   for(var k=0;k<this.lines.length;k++){
     var L=this.lines[k];
     L.slg.gain.setTargetAtTime(ENS.slowDepth*P.ens*S.motion, now, 0.2);
@@ -982,7 +1001,7 @@ Engine.prototype.level = function(){
 /* Uma voz = um acorde de pad num tom. Entra e sai só por fade.
    Nível parado por construção: nenhum LFO de amplitude e nenhuma desafinação entre os osciladores de uma nota
    (nada bate devagar). A vida vem do ensemble, que mexe no timbre sem mexer no nível. Cada oscilador começa com
-   uma fase aleatória: as notas não se "colam" numa única onda pontuda — o acorde soa como acorde, não como zumbido.
+   uma fase decidida pela sua frequência (startPhase): harmônicos vizinhos não se "colam" numa onda pontuda.
    Oitavas exatas, quinta justa (ver TUNING), terça temperada. Filtro passa-baixas em dois estágios (24 dB/oit), redondo. */
 function Voice(engine, pc, mode, P, S){
   var c=engine.ctx; this.c=c; this.engine=engine; this.pc=pc; this.mode=mode; this.hue=hueOf(pc); this.seed=Math.random()*6.28;
@@ -992,38 +1011,81 @@ function Voice(engine, pc, mode, P, S){
   this.f2=c.createBiquadFilter(); this.f2.type='lowpass'; this.f2.Q.value=P.q; this.f2.frequency.value=cutoff;
   this.f1.connect(this.f2); this.f2.connect(this.out); this.out.connect(engine.bus);
   this.oscs=[];
-  var notes=this.voicing(pc,mode,P), t=c.currentTime;
+  var notes=this.voicing(pc,mode,P), t=c.currentTime, self=this;
+  function osc(wave, freq, gain, dest){
+    var o=c.createOscillator();
+    if(engine.waves[wave]) o.setPeriodicWave(engine.waves[wave]); else o.type=wave;
+    o.frequency.value=freq;
+    var g=c.createGain(); g.gain.value=gain; o.connect(g); g.connect(dest);
+    o.start(t + startPhase(freq));     // fase fixa por frequência (o fade ainda está abaixo de −50 dB)
+    self.oscs.push(o);
+  }
   for(var i=0;i<notes.length;i++){
     var n=notes[i];
     var ng=c.createGain(); ng.gain.value=n.level*0.2; ng.connect(this.f1);
-    var set=n.oscs||P.oscs;
-    for(var j=0;j<set.length;j++){
-      var o=c.createOscillator(), w=set[j][0];
-      if(engine.waves[w]) o.setPeriodicWave(engine.waves[w]); else o.type=w;
-      o.frequency.value=n.freq;
-      var og=c.createGain(); og.gain.value=set[j][1]; o.connect(og); og.connect(ng);
-      o.start(t + Math.random()*0.03);   // fase aleatória (o fade ainda está abaixo de −50 dB)
-      this.oscs.push(o);
+    if(P.additive && !n.oscs){
+      /* Parciais de piano: amplitude cai como 1/k^tilt, com o pente da posição do martelo (≈1/7,5 da corda — os
+         parciais 7 e 8 somem, como no piano), e a frequência de cada parcial estica com a rigidez da corda
+         (f_k = k·f0·√(1+B·k²), B crescendo com a altura). O baixo (uma oitava abaixo) sai mais escuro. */
+      var N=Math.max(3, Math.min(P.partials, Math.floor(5200/n.freq)));
+      var tilt=P.tilt+(n.bass ? 0.5 : 0);
+      for(var k=1;k<=N;k++){
+        var a=Math.pow(k,-tilt)*(0.3+0.7*Math.abs(Math.sin(k*Math.PI/7.5)));
+        osc('sine', partialFreq(P, n.freq, k), a*0.9, ng);
+      }
+    }else{
+      var set=n.oscs||P.oscs;
+      for(var j=0;j<set.length;j++) osc(set[j][0], n.freq, set[j][1], ng);
     }
   }
   this.curve=new Float32Array([0,0]); this.t0=t; this.dur=0.001; this.fadeEnd=t;
   this.disposed=false;
 }
+/* Fase inicial decidida pela frequência (embaralhada entre frequências diferentes, igual para a mesma frequência):
+   parciais de notas diferentes que caem na mesma frequência somam sempre do mesmo jeito — o timbre não muda a
+   cada toque nem perde a tônica por azar —, e harmônicos vizinhos não se alinham numa onda pontuda. */
+function startPhase(f){ return ((f*0.7548776662)%1)/f; }
+/* Rigidez da corda: B cresce com a altura; o parcial k sai em k·f·√(1+B·k²). Nos presets B é 0: a inarmonicidade
+   de um piano real faz parciais vizinhos baterem devagar (medimos 2–4 dB de ondulação lenta), o que num pad
+   sustentado vira "respiração" do volume. Com B = 0 todos os parciais do acorde coincidem e o nível fica parado. */
+function inharmB(P, f){ return (P.inharm||0)*Math.pow(f/262, 1.2); }
+function partialFreq(P, f, k){ return k*f*Math.sqrt(1+inharmB(P,f)*k*k); }
+/* Vozeamento: baixo uma oitava abaixo da tônica, tônica, quinta, oitava, 12ª, 15ª (duas oitavas), nona leve
+   (não no menor, onde roçaria na terça) e, nos modos maior/menor, a terça uma e duas oitavas acima.
+   Nos presets aditivos a afinação é a do afinador de piano: cada nota é posta onde um parcial seu coincide com
+   um parcial da tônica (oitava no 2º parcial, quinta e 12ª no 3º, terça maior no 5º, nona no 3º da quinta) —
+   as oitavas ficam "esticadas" como num piano de verdade e nada bate devagar dentro do acorde. */
 Voice.prototype.voicing = function(pc, mode, P){
-  var root = pc>=7 ? 36+pc : 48+pc;         // tônicas entre Sol2 e Fá♯3
-  var f0 = mtof(root), third = MODES[mode].third, q5 = TUNING.fifth;
+  var root = (pc>=7 ? 36+pc : 48+pc) + 12*(P.oct||0);
+  var f0 = mtof(root), third = MODES[mode].third, add = !!P.additive;
+  function below(target, approxF, k){ return target/(k*Math.sqrt(1+inharmB(P,approxF)*k*k)); }  // nota cujo parcial k cai em target
+  var fBass, f5, f8, f12, f15, f9, f3, f3h;
+  if(add){
+    fBass = below(f0, f0/2, 2);
+    f5    = below(partialFreq(P,f0,3), 1.5*f0, 2);
+    f8    = partialFreq(P,f0,2);
+    f12   = partialFreq(P,f0,3);
+    f15   = partialFreq(P,f8,2);
+    f9    = below(partialFreq(P,f5,3), 2.25*f0, 2);
+    f3    = third===4 ? below(partialFreq(P,f0,5), 2.5*f0, 2) : f0*2*Math.pow(2,third/12);
+    f3h   = third===4 ? partialFreq(P,f0,5) : f0*4*Math.pow(2,third/12);
+  }else{
+    var q5=TUNING.fifth;
+    fBass=f0/2; f5=f0*q5; f8=f0*2; f12=f0*2*q5; f15=f0*4; f9=f0*2*Math.pow(2,2/12);
+    f3=f0*2*Math.pow(2,third/12); f3h=f0*4*Math.pow(2,third/12);
+  }
   var notes=[
-    {freq:f0/2,    level:P.sub,  oscs:[['sine',0.85],['triangle',0.25]]},
-    {freq:f0,      level:0.9},
-    {freq:f0*q5,   level:0.68},
-    {freq:f0*2,    level:0.58},
-    {freq:f0*2*q5, level:0.4},
-    {freq:f0*4,    level:P.high, oscs:[['sine',0.7],['triangle',0.3]]}
+    {freq:fBass, level:P.sub,  bass:true, oscs: add ? null : [['sine',0.85],['triangle',0.25]]},
+    {freq:f0,    level:0.9},
+    {freq:f5,    level:0.6},
+    {freq:f8,    level:0.5},
+    {freq:f12,   level:0.25},
+    {freq:f15,   level:P.high, oscs: add ? null : [['sine',0.7],['triangle',0.3]]}
   ];
+  if(P.ninth && mode!=='menor') notes.push({freq:f9, level:P.ninth});
   if(third!=null){
-    var r3 = Math.pow(2, third/12);
-    notes.push({freq:f0*2*r3, level:0.34});
-    notes.push({freq:f0*4*r3, level:P.high*0.5, oscs:[['sine',0.8]]});
+    notes.push({freq:f3,  level:0.34});
+    notes.push({freq:f3h, level:P.high*0.5, oscs: add ? null : [['sine',0.8]]});
   }
   return notes;
 };

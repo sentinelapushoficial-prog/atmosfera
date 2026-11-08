@@ -12,19 +12,27 @@ Funciona como app instalável (PWA): abre sem internet depois da primeira visita
 
 - Fades lineares em decibéis (de −50 dB até cheio): o crescimento soa parelho do começo ao fim. Troca de tom por
   crossfade de potência constante.
-- Timbre: ondas desenhadas por harmônicos (`makeWaves`), fases iniciais aleatórias (o acorde não se "cola" numa
-  onda pontuda), oitavas exatas e quinta justa (`TUNING`), filtro passa-baixas em dois estágios (24 dB/oit).
-- Ensemble polifásico (`ENS`): seis linhas de atraso moduladas por um LFO lento e um rápido, fases a 60° — o que
-  uma linha tira a outra devolve, então o som gira sem o nível oscilar (ondulação medida ≤ 0,8 dB). As linhas saem
-  espalhadas no estéreo; a soma em mono continua estável. O controle "Ensemble" regula a profundidade.
+- Presets **Piano** (padrão) e **Cristal**: síntese aditiva — cada nota é um conjunto de parciais senoidais com a
+  envoltória espectral de um piano (queda 1/k^tilt e o pente da posição do martelo, ≈1/7,5 da corda), tônica uma
+  oitava acima (entre Sol3 e Fá♯4), baixo uma oitava abaixo, quinta/oitava/12ª/15ª, nona leve e terça nos modos
+  maior/menor. Afinação de afinador de piano (`partialFreq`/`below`): cada nota cai onde um parcial seu coincide
+  com um parcial da tônica — nada bate devagar. A inarmonicidade (`inharm`) existe no código mas fica em 0: com ela
+  os parciais vizinhos batem e o nível "respira" (medido 2–4 dB).
+- **Cordas**: dente de serra em ensemble, uma oitava acima. **Profundo**: pad escuro no registro grave.
+- Fase inicial por frequência (`startPhase`): parciais coincidentes somam sempre igual (timbre consistente), sem
+  onda pontuda.
+- Ensemble polifásico (`ENS`): seis linhas de atraso moduladas (LFO lento 0,9 Hz e rápido 6,2 Hz), fases a 60° —
+  gira sem o nível oscilar. Divisor Linkwitz-Riley (`ensSplit`): só graves e médios passam pelo ensemble; os
+  agudos seguem limpos (nos parciais agudos do piano o chorus virava tremor). O controle "Ensemble" regula a
+  profundidade. Ondulação medida ≤ 0,9 dB em todos os presets.
 - Shimmer: cópia uma oitava acima (deslocador granular, `makeShifter`) entra só no reverb.
-- Sem LFO de amplitude e sem desafinação entre osciladores de uma mesma nota. Limitador só de segurança (−1 dB);
-  o nível de trabalho é `BUS_GAIN`.
+- Sem LFO de amplitude e sem desafinação dentro da nota. Limitador só de segurança (−1 dB); nível de trabalho
+  `BUS_GAIN`. Atenção: no Web Audio o `Q` dos passa-baixas/altas é em dB.
 - Segundo plano: enquanto o pad toca, um `<audio>` com 30 s de silêncio em loop toca junto, e a Media Session mostra
   música e tom na notificação e na tela de bloqueio (Pausar, Próxima, Anterior). Se o sistema pausar a mídia ou
   interromper o áudio, o app tenta voltar sozinho (até 8 vezes por minuto). Só para com Parar ou ao fechar o app.
-- `test_audio.py` renderiza o motor num OfflineAudioContext e mede fade, ondulação e picos; `test_shifter.py`
-  confere o shimmer; `test_bg.py` o comportamento de mídia/Media Session.
+- `tests/test_audio.py` renderiza o motor num OfflineAudioContext e mede fade, ondulação, picos e equilíbrio
+  espectral; `tests/test_shifter.py` confere o shimmer; `tests/test_bg.py` o comportamento de mídia/Media Session.
 
 ## Publicar uma versão nova
 
