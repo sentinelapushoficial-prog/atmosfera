@@ -1,10 +1,19 @@
 /* Atmosfera: cache do app para abrir sem internet.
-   Estratégia: responde pelo cache na hora e atualiza em segundo plano (a versão nova entra na próxima abertura). */
-var CACHE = 'atmosfera-v3';
+   Estratégia: responde pelo cache na hora e atualiza em segundo plano.
+   A cada publicação, mude o número de CACHE: é isso que faz o aparelho baixar a versão nova e mostrar o aviso "Atualizar". */
+var CACHE = 'atmosfera-v4';
 var ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png'];
 
 self.addEventListener('install', function (e) {
-  e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(ASSETS); }).then(function () { return self.skipWaiting(); }));
+  e.waitUntil(caches.open(CACHE).then(function (c) {
+    // cache:'reload' pula o cache HTTP do navegador: a cópia guardada é sempre a que está no servidor agora
+    return Promise.all(ASSETS.map(function (a) {
+      return fetch(new Request(a, { cache: 'reload' })).then(function (res) {
+        if (!res || !res.ok) throw new Error('falha ao baixar ' + a);
+        return c.put(a, res);
+      });
+    }));
+  }).then(function () { return self.skipWaiting(); }));
 });
 
 self.addEventListener('activate', function (e) {
