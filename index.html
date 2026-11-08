@@ -308,7 +308,7 @@ body.palco .song .mark{width:36px;height:36px;font-size:1rem}
             <input type="range" id="fader" min="0" max="1" step="0.01" value="0.8" aria-label="Volume principal">
             <output id="faderOut" for="fader">80%</output>
           </div>
-          <p class="ctx-warn" id="ctxWarn">O áudio foi interrompido pelo sistema. Toque em "Iniciar com fade" para retomar.</p>
+          <p class="ctx-warn" id="ctxWarn">O sistema interrompeu o som (outro app tomou o áudio ou uma ligação entrou). O Atmosfera tenta voltar sozinho; se não voltar, toque em "Iniciar com fade".</p>
         </div>
       </section>
 
@@ -446,7 +446,8 @@ body.palco .song .mark{width:36px;height:36px;font-size:1rem}
       <section class="panel" aria-labelledby="hCel">
         <div class="panel-head"><h2 id="hCel">Celular no palco</h2></div>
         <ul class="plain">
-          <li><b>Tela ligada:</b> enquanto o pad toca, o app pede ao sistema para não apagar a tela. Isso só é atendido com a página aberta no Chrome. Como garantia, deixe o tempo limite da tela em 10 ou 30 minutos.</li>
+          <li><b>Som em segundo plano:</b> enquanto o pad toca, o Atmosfera aparece como mídia na notificação e na tela de bloqueio (Pausar, Próxima, Anterior), e o som segue com a tela apagada ou com outro app na frente. Só para quando você toca em Parar ou fecha o app. Se outro app tomar o áudio, o Atmosfera retoma sozinho em 1–2 s (pela regra do Android, o outro app pausa). No Samsung, tire o Chrome de "Apps em suspensão" (Bateria › Limites de uso em segundo plano) para o sistema não derrubar o som.</li>
+          <li><b>Tela ligada:</b> enquanto o pad toca e o app está na frente, ele pede ao sistema para não apagar a tela. Como garantia, deixe o tempo limite da tela em 10 ou 30 minutos.</li>
           <li><b>Modo avião e Não perturbe:</b> nenhuma página consegue ligar isso por você; é regra do Android. No Samsung, o app <b>Modos e Rotinas</b> faz o serviço: crie um modo "Louvor" que liga o Não perturbe e mantém a tela ligada, e ative com um toque antes do culto (se o seu aparelho oferecer, inclua o modo avião).</li>
           <li><b>Som do aparelho:</b> volume de mídia no máximo, Dolby Atmos e equalizador desligados. O nível fino se faz aqui, no fader grande, olhando o medidor.</li>
         </ul>
@@ -489,11 +490,13 @@ function hueOf(pc){ return ((pc*7)%12)*30; }
 function mtof(m){ return 440*Math.pow(2,(m-69)/12); }
 
 /* ---------- Presets de som ---------- */
+/* Cada preset: filtro, osciladores por nota [forma, ganho] (sem desafinação entre eles: nada bate, o nível fica parado),
+   peso do sub e dos agudos, largura, reverb, alcance do movimento do brilho (só se o usuário ligar) e vibrato (cents). */
 var PRESETS = {
-  quente:  {label:'Quente',  desc:'analógico, redondo',        cutoff:950,  q:0.8, detune:7,  oscs:[['sawtooth',-1,0.5],['sawtooth',1,0.5],['triangle',0,0.65]], sub:0.5,  high:0.16, width:0.4,  reverb:0.45, lfoDepth:260, vib:0,   shimmer:false},
-  cristal: {label:'Cristal', desc:'claro, com brilho no alto', cutoff:2300, q:0.6, detune:5,  oscs:[['sawtooth',-1,0.34],['sawtooth',1,0.34],['sine',0,0.55]],     sub:0.32, high:0.42, width:0.5,  reverb:0.6,  lfoDepth:200, vib:0,   shimmer:true},
-  cordas:  {label:'Cordas',  desc:'conjunto, com vibrato leve',cutoff:1700, q:0.7, detune:10, oscs:[['sawtooth',-1,0.42],['sawtooth',1,0.42],['sawtooth',0,0.3]],  sub:0.28, high:0.2,  width:0.65, reverb:0.4,  lfoDepth:150, vib:4.6, shimmer:false},
-  profundo:{label:'Profundo',desc:'escuro, cinematográfico',   cutoff:680,  q:0.9, detune:6,  oscs:[['sawtooth',-1,0.45],['sawtooth',1,0.45],['triangle',0,0.75]], sub:0.75, high:0.08, width:0.35, reverb:0.55, lfoDepth:360, vib:0,   shimmer:false}
+  quente:  {label:'Quente',  desc:'analógico, redondo',        cutoff:950,  q:0.8, oscs:[['sawtooth',0.55],['triangle',0.7]],  sub:0.5,  high:0.16, width:0.4,  reverb:0.45, lfoDepth:260, vib:0,   shimmer:false},
+  cristal: {label:'Cristal', desc:'claro, com brilho no alto', cutoff:2300, q:0.6, oscs:[['sawtooth',0.4],['sine',0.6]],       sub:0.32, high:0.42, width:0.5,  reverb:0.6,  lfoDepth:200, vib:0,   shimmer:true},
+  cordas:  {label:'Cordas',  desc:'conjunto, com vibrato leve',cutoff:1700, q:0.7, oscs:[['sawtooth',0.6],['triangle',0.3]],   sub:0.28, high:0.2,  width:0.65, reverb:0.4,  lfoDepth:150, vib:4.6, shimmer:false},
+  profundo:{label:'Profundo',desc:'escuro, cinematográfico',   cutoff:680,  q:0.9, oscs:[['sawtooth',0.5],['triangle',0.8]],   sub:0.75, high:0.08, width:0.35, reverb:0.55, lfoDepth:360, vib:0,   shimmer:false}
 };
 
 /* ---------- Catálogo embutido: tom da gravação original (fichas "Original Master" do MultiTracks e cifras oficiais) ----------
@@ -642,7 +645,7 @@ var CATALOG_RAW = [
 ];
 
 /* ---------- Repertório inicial ---------- */
-var APP_VERSION = '1.5';
+var APP_VERSION = '1.6';
 var DEFAULT_SETLIST = [
   {id:'d1', t:'Galileu',                           a:'Fernandinho',    k:10, m:'menor'},
   {id:'d2', t:'Canção do Céu',                     a:'Mauro Henrique', k:6,  m:'maior'},
@@ -653,7 +656,7 @@ var DEFAULT_SETLIST = [
   {id:'d7', t:'Quebrantado',                       a:'Vineyard',       k:0,  m:'maior'}
 ];
 var DEFAULT_SEQ = ['d1','d2','d3','d4','d5','d6','d7'];
-var DEFAULT_SETTINGS = {preset:'quente', volume:0.8, fadeIn:10, xfade:10, bright:0.5, reverb:0.45, motion:0.5, width:0.4, lookupUrl:''};
+var DEFAULT_SETTINGS = {preset:'quente', volume:0.8, fadeIn:10, xfade:10, bright:0.5, reverb:0.45, motion:0, width:0.4, lookupUrl:'', engine:6};
 
 /* Dois conjuntos: o repertório (todas as músicas cadastradas, cada uma com o tom em que a igreja toca)
    e a sequência de hoje (ids do repertório, na ordem em que foram tocados). Próxima/Anterior andam pela sequência. */
@@ -689,6 +692,8 @@ function load(){
     var d = JSON.parse(raw);
     if(d.settings){ for(var k in DEFAULT_SETTINGS){ if(typeof d.settings[k]==='number' || typeof d.settings[k]==='string') state.settings[k]=d.settings[k]; } }
     if(ver===1){ state.settings.fadeIn=Math.max(state.settings.fadeIn,DEFAULT_SETTINGS.fadeIn); state.settings.xfade=Math.max(state.settings.xfade,DEFAULT_SETTINGS.xfade); }
+    // motor 6: o "movimento" passou a mexer só no brilho e vem desligado; quem vinha das versões anteriores começa parado
+    if(!(d.settings && d.settings.engine>=6)){ state.settings.motion=0; state.settings.engine=6; }
     if(!PRESETS[state.settings.preset]) state.settings.preset='quente';
     state.settings.fadeIn=clamp(state.settings.fadeIn,2,40); state.settings.xfade=clamp(state.settings.xfade,2,40);
     if(Array.isArray(d.setlist)) state.setlist = sanitizeList(d.setlist);
@@ -744,13 +749,14 @@ function sanitizeSeq(seq){
 function songById(id){ for(var i=0;i<state.setlist.length;i++){ if(state.setlist[i].id===id) return state.setlist[i]; } return null; }
 
 /* ---------- Curvas de fade ----------
-   in/out: potência 2.2 (começa quase inaudível e cresce devagar).
-   xin/xout: potência constante com início e fim suavizados (troca de tom sem buraco nem salto). */
+   Cada curva é o ganho da entrada em função do progresso (0→1); a saída percorre a mesma curva ao contrário.
+   fade: linear em decibéis, de −50 dB até cheio — o ouvido percebe um crescimento parelho do começo ao fim,
+         sem o salto inicial das curvas lineares (os primeiros 4% só tiram o ganho do zero absoluto).
+   cross: potência constante (seno/cosseno) com início e fim suavizados — troca de tom sem buraco nem salto. */
+var FADE_FLOOR_DB = -50;
 var SHAPES = {
-  'in':  function(p){ return Math.pow(p,2.2); },
-  'out': function(p){ return 1-Math.pow(1-p,2.2); },
-  'xin': function(p){ var s=p*p*(3-2*p); return Math.sin(s*Math.PI/2); },
-  'xout':function(p){ var s=p*p*(3-2*p); return 1-Math.cos(s*Math.PI/2); }
+  fade:  function(p){ if(p<=0) return 0; if(p>=1) return 1; return Math.pow(10, FADE_FLOOR_DB*(1-p)/20)*Math.min(1, p/0.04); },
+  cross: function(p){ p=clamp(p,0,1); var s=p*p*(3-2*p); return Math.sin(s*Math.PI/2); }
 };
 function invert(f, y){ // bissecção numa função crescente em [0,1]
   var lo=0, hi=1;
@@ -777,42 +783,30 @@ Engine.prototype.resume = function(){
   if(!this.ctx) return;
   if(this.ctx.state!=='running'){ try{ var p=this.ctx.resume(); if(p && p.catch) p.catch(function(){}); }catch(e){} }
 };
+/* Cadeia: vozes → bus → reverb (seco + convolução) → limitador de segurança → volume → medidor → saída.
+   Sem chorus nem delays modulados: nada no caminho mexe no nível com o tempo. O limitador fica alto (−1 dB)
+   e só entra em pico raro; o nível de trabalho é dado pelo ganho do bus, abaixo dele. */
+var BUS_GAIN = 0.8;
 Engine.prototype.build = function(){
   var c=this.ctx;
-  this.bus = c.createGain(); this.bus.gain.value=1;
-
-  // Chorus / ensemble: seco + duas linhas de atraso moduladas, abertas em estéreo
-  this.chDry = c.createGain(); this.chWet = c.createGain();
-  this.dL = c.createDelay(0.1); this.dR = c.createDelay(0.1);
-  this.dL.delayTime.value=0.0145; this.dR.delayTime.value=0.0212;
-  this.lfoL = c.createOscillator(); this.lfoL.frequency.value=0.11; this.lfoLg=c.createGain(); this.lfoLg.gain.value=0.0024;
-  this.lfoR = c.createOscillator(); this.lfoR.frequency.value=0.163; this.lfoRg=c.createGain(); this.lfoRg.gain.value=0.0029;
-  this.lfoL.connect(this.lfoLg); this.lfoLg.connect(this.dL.delayTime);
-  this.lfoR.connect(this.lfoRg); this.lfoRg.connect(this.dR.delayTime);
-  this.panL = c.createStereoPanner ? c.createStereoPanner() : c.createGain();
-  this.panR = c.createStereoPanner ? c.createStereoPanner() : c.createGain();
-  this.bus.connect(this.chDry);
-  this.bus.connect(this.dL); this.dL.connect(this.panL); this.panL.connect(this.chWet);
-  this.bus.connect(this.dR); this.dR.connect(this.panR); this.panR.connect(this.chWet);
-  this.fx = c.createGain(); this.chDry.connect(this.fx); this.chWet.connect(this.fx);
+  this.bus = c.createGain(); this.bus.gain.value=BUS_GAIN;
 
   // Reverb por convolução com resposta gerada (cauda longa que escurece)
   this.rvDry = c.createGain(); this.rvWet = c.createGain();
   this.pre = c.createDelay(0.2); this.pre.delayTime.value=0.028;
   this.conv = c.createConvolver(); this.conv.buffer = this.makeIR(6.5);
-  this.fx.connect(this.rvDry);
-  this.fx.connect(this.pre); this.pre.connect(this.conv); this.conv.connect(this.rvWet);
+  this.bus.connect(this.rvDry);
+  this.bus.connect(this.pre); this.pre.connect(this.conv); this.conv.connect(this.rvWet);
 
-  // Limitador, volume, medidor
+  // Limitador de segurança, volume, medidor
   this.limiter = c.createDynamicsCompressor();
-  this.limiter.threshold.value=-6; this.limiter.knee.value=6; this.limiter.ratio.value=12;
-  this.limiter.attack.value=0.004; this.limiter.release.value=0.3;
+  this.limiter.threshold.value=-1; this.limiter.knee.value=0; this.limiter.ratio.value=20;
+  this.limiter.attack.value=0.002; this.limiter.release.value=0.15;
   this.rvDry.connect(this.limiter); this.rvWet.connect(this.limiter);
   this.master = c.createGain(); this.master.gain.value=0.001;
   this.limiter.connect(this.master);
   this.analyser = c.createAnalyser(); this.analyser.fftSize=1024; this.analyser.smoothingTimeConstant=0.6;
   this.master.connect(this.analyser); this.analyser.connect(c.destination);
-  this.lfoL.start(); this.lfoR.start();
   this.applySettings();
 };
 Engine.prototype.makeIR = function(seconds){
@@ -843,10 +837,6 @@ Engine.prototype.applySettings = function(){
   var c=this.ctx, now=c.currentTime, S=state.settings, P=PRESETS[S.preset];
   var vol = S.volume*S.volume;
   if(!this.muted) this.master.gain.setTargetAtTime(Math.max(0.0001,vol), now, 0.05);
-  var wet = S.width*0.9;
-  this.chWet.gain.setTargetAtTime(wet, now, 0.05);
-  this.chDry.gain.setTargetAtTime(1-0.35*S.width, now, 0.05);
-  if(this.panL.pan){ this.panL.pan.setTargetAtTime(-(0.25+0.75*S.width), now, 0.05); this.panR.pan.setTargetAtTime((0.25+0.75*S.width), now, 0.05); }
   var r=S.reverb;
   this.rvDry.gain.setTargetAtTime(1-0.55*r, now, 0.05);
   this.rvWet.gain.setTargetAtTime(1.15*r, now, 0.05);
@@ -855,7 +845,7 @@ Engine.prototype.applySettings = function(){
     var v=this.all[i];
     v.filter.frequency.setTargetAtTime(cutoff, now, 0.1);
     v.fLfoG.gain.setTargetAtTime(P.lfoDepth*2*S.motion, now, 0.1);
-    for(var j=0;j<v.ampLfos.length;j++) v.ampLfos[j].g.gain.setTargetAtTime(v.ampLfos[j].base*0.3*S.motion, now, 0.1);
+    for(var j=0;j<v.pans.length;j++) v.pans[j].node.pan.setTargetAtTime(v.pans[j].side*PAN_SPREAD*S.width, now, 0.1);
   }
 };
 Engine.prototype.unmute = function(){
@@ -913,29 +903,31 @@ Engine.prototype.level = function(){
   return rms>0 ? 20*Math.log10(rms) : -Infinity;
 };
 
-/* Uma voz = um acorde de pad num tom. Entra e sai só por fade. */
+/* Uma voz = um acorde de pad num tom. Entra e sai só por fade.
+   Nível parado por construção: nenhum LFO de amplitude, nenhuma desafinação entre osciladores (nada bate),
+   quintas justas (3:2) para a forma de onda ser periódica, e a largura estéreo vem de pans fixos por nota. */
+var PAN_SPREAD = 0.5;
 function Voice(engine, pc, mode, P, S){
   var c=engine.ctx; this.c=c; this.engine=engine; this.pc=pc; this.mode=mode; this.hue=hueOf(pc); this.seed=Math.random()*6.28;
   this.out=c.createGain(); this.out.gain.value=0;
   this.filter=c.createBiquadFilter(); this.filter.type='lowpass'; this.filter.Q.value=P.q; this.filter.frequency.value=engine.cutoffFor(P,S);
   this.filter.connect(this.out); this.out.connect(engine.bus);
+  // movimento do brilho: desligado por padrão (ganho 0 → o filtro fica parado)
   this.fLfo=c.createOscillator(); this.fLfo.frequency.value=0.05+Math.random()*0.05;
   this.fLfoG=c.createGain(); this.fLfoG.gain.value=P.lfoDepth*2*S.motion;
   this.fLfo.connect(this.fLfoG); this.fLfoG.connect(this.filter.detune);
-  this.oscs=[]; this.lfos=[this.fLfo]; this.ampLfos=[];
-  if(P.vib){ this.vib=c.createOscillator(); this.vib.frequency.value=P.vib; this.vibG=c.createGain(); this.vibG.gain.value=5; this.vib.connect(this.vibG); this.lfos.push(this.vib); }
-  var notes=this.voicing(pc,mode,P);
+  this.oscs=[]; this.lfos=[this.fLfo]; this.pans=[];
+  if(P.vib){ this.vib=c.createOscillator(); this.vib.frequency.value=P.vib; this.vibG=c.createGain(); this.vibG.gain.value=3; this.vib.connect(this.vibG); this.lfos.push(this.vib); }
+  var notes=this.voicing(pc,mode,P), canPan=!!c.createStereoPanner;
   for(var i=0;i<notes.length;i++){
-    var n=notes[i], base=n.level*0.2;
-    var ng=c.createGain(); ng.gain.value=base; ng.connect(this.filter);
-    var al=c.createOscillator(); al.frequency.value=0.04+Math.random()*0.12;
-    var alg=c.createGain(); alg.gain.value=base*0.3*S.motion; al.connect(alg); alg.connect(ng.gain);
-    this.lfos.push(al); this.ampLfos.push({o:al,g:alg,base:base});
+    var n=notes[i];
+    var ng=c.createGain(); ng.gain.value=n.level*0.2;
+    if(canPan && n.side){ var pan=c.createStereoPanner(); pan.pan.value=n.side*PAN_SPREAD*S.width; ng.connect(pan); pan.connect(this.filter); this.pans.push({node:pan, side:n.side}); }
+    else ng.connect(this.filter);
     var set=n.oscs||P.oscs;
     for(var j=0;j<set.length;j++){
-      var o=c.createOscillator(); o.type=set[j][0]; o.frequency.value=mtof(n.midi);
-      o.detune.value = set[j][1]*P.detune*(n.detuneScale||1) + (Math.random()-0.5)*2;
-      var og=c.createGain(); og.gain.value=set[j][2]; o.connect(og); og.connect(ng);
+      var o=c.createOscillator(); o.type=set[j][0]; o.frequency.value=n.freq;
+      var og=c.createGain(); og.gain.value=set[j][1]; o.connect(og); og.connect(ng);
       if(this.vibG) this.vibG.connect(o.detune);
       this.oscs.push(o);
     }
@@ -948,20 +940,21 @@ function Voice(engine, pc, mode, P, S){
 }
 Voice.prototype.voicing = function(pc, mode, P){
   var root = pc>=7 ? 36+pc : 48+pc;         // tônicas entre Sol2 e Fá♯3
-  var third = MODES[mode].third;
+  var f0 = mtof(root), third = MODES[mode].third;
   var notes=[
-    {midi:root-12, level:P.sub,  oscs:[['sine',0,0.9],['triangle',0,0.3]]},
-    {midi:root,    level:0.9},
-    {midi:root+7,  level:0.7},
-    {midi:root+12, level:0.6},
-    {midi:root+19, level:0.42},
-    {midi:root+24, level:P.high, oscs:[['sine',0,0.7],['triangle',0,0.3]], detuneScale:0.5}
+    {freq:f0/2,   level:P.sub,  side:0,  oscs:[['sine',0.9],['triangle',0.3]]},
+    {freq:f0,     level:0.9,    side:0},
+    {freq:f0*1.5, level:0.7,    side:-1},
+    {freq:f0*2,   level:0.6,    side:1},
+    {freq:f0*3,   level:0.42,   side:-1},
+    {freq:f0*4,   level:P.high, side:1,  oscs:[['sine',0.7],['triangle',0.3]]}
   ];
   if(third!=null){
-    notes.push({midi:root+12+third, level:0.36});
-    notes.push({midi:root+24+third, level:P.high*0.55, oscs:[['sine',0,0.8]]});
+    var r3 = Math.pow(2, third/12);          // terça temperada, igual à da banda
+    notes.push({freq:f0*2*r3, level:0.36,        side:1});
+    notes.push({freq:f0*4*r3, level:P.high*0.55, side:-1, oscs:[['sine',0.8]]});
   }
-  if(P.shimmer) notes.push({midi:root+31, level:P.high*0.45, oscs:[['sine',0,0.8]]});
+  if(P.shimmer) notes.push({freq:f0*6, level:P.high*0.45, side:0, oscs:[['sine',0.8]]});
   return notes;
 };
 Voice.prototype.currentGain = function(){
@@ -974,14 +967,15 @@ Voice.prototype.fadeTo = function(target, dur, shape){
   var g=this.out.gain, now=this.c.currentTime, cur=clamp(this.currentGain(),0,1);
   target=clamp(target,0,1);
   var rising = target>cur, cross = (shape==='xin'||shape==='xout');
-  var f = rising ? (cross ? SHAPES.xin : SHAPES['in']) : (cross ? SHAPES.xout : SHAPES.out);
+  var f = cross ? SHAPES.cross : SHAPES.fade;
   // progresso inicial equivalente ao ganho atual, para retomar a curva de onde ela está
-  var p0 = rising ? invert(f, cur) : invert(f, 1-cur);
+  // (subindo: g=f(p); descendo: g=f(1−p), a mesma curva percorrida ao contrário)
+  var p0 = rising ? invert(f, cur) : 1-invert(f, cur);
   var d=Math.max(0.05, dur*(1-p0));
-  var N=160, curve=new Float32Array(N);
+  var N=240, curve=new Float32Array(N);
   for(var i=0;i<N;i++){
     var p=p0+(1-p0)*i/(N-1);
-    curve[i]=clamp(rising ? f(p) : 1-f(p), 0, 1);
+    curve[i]=clamp(rising ? f(p) : f(1-p), 0, 1);
   }
   curve[0]=cur; curve[N-1]=rising?1:0;
   try{
@@ -1010,38 +1004,121 @@ Voice.prototype.dispose = function(){
 
 var engine=new Engine();
 
-/* ---------- Som silencioso para o iOS não cortar com a chave de silêncio ---------- */
-var silent=null;
-function unlockMedia(){
-  if(silent) { try{ var p=silent.play(); if(p&&p.catch) p.catch(function(){}); }catch(e){} return; }
+/* ---------- Som em segundo plano ----------
+   O pad sai pelo Web Audio, mas o sistema só trata a página como "tocando mídia" (notificação de mídia, controles
+   na tela de bloqueio, processo protegido com a tela apagada ou com outro app na frente) se houver um elemento de
+   áudio tocando. Por isso, enquanto o som existe, um <audio> com 30 s de silêncio em loop fica tocando junto —
+   no iOS ele também evita o corte pela chave de silêncio. Ele só é pausado quando o som acaba de verdade. */
+var media={el:null, ownPause:false};
+function mediaEnsure(){
+  if(media.el) return media.el;
   try{
-    var sr=8000, len=sr/2, bytes=new Uint8Array(44+len), v=new DataView(bytes.buffer);
+    var sr=8000, len=sr*30, bytes=new Uint8Array(44+len), v=new DataView(bytes.buffer);
     function str(o,s){ for(var i=0;i<s.length;i++) bytes[o+i]=s.charCodeAt(i); }
     str(0,'RIFF'); v.setUint32(4,36+len,true); str(8,'WAVE'); str(12,'fmt '); v.setUint32(16,16,true);
     v.setUint16(20,1,true); v.setUint16(22,1,true); v.setUint32(24,sr,true); v.setUint32(28,sr,true); v.setUint16(32,1,true); v.setUint16(34,8,true);
     str(36,'data'); v.setUint32(40,len,true); for(var i=0;i<len;i++) bytes[44+i]=128;
-    silent=document.createElement('audio'); silent.loop=true; silent.setAttribute('playsinline','');
-    silent.src=URL.createObjectURL(new Blob([bytes],{type:'audio/wav'}));
-    var p=silent.play(); if(p&&p.catch) p.catch(function(){});
+    var el=document.createElement('audio'); el.loop=true; el.setAttribute('playsinline',''); el.preload='auto';
+    el.src=URL.createObjectURL(new Blob([bytes],{type:'audio/wav'}));
+    el.addEventListener('pause', function(){
+      if(media.ownPause){ media.ownPause=false; return; }
+      // o sistema pausou (outro app tomou o áudio, ligação, economia de bateria): se ainda há som, voltamos
+      if(engine.active()) guardKick();
+    });
+    el.addEventListener('play', function(){ mediaSessionUpdate(); });
+    media.el=el;
   }catch(e){}
+  return media.el;
 }
+function mediaPlay(){
+  var el=mediaEnsure(); if(!el) return;
+  media.ownPause=false;
+  try{ var p=el.play(); if(p&&p.catch) p.catch(function(){}); }catch(e){}
+}
+function mediaPause(){
+  var el=media.el; if(!el || el.paused) return;
+  media.ownPause=true;
+  try{ el.pause(); }catch(e){}
+}
+
+/* Controles de mídia do sistema (notificação e tela de bloqueio) e o que aparece lá. */
+var msLast='';
+function mediaSessionSetup(){
+  if(!('mediaSession' in navigator)) return;
+  var ms=navigator.mediaSession;
+  function on(a,fn){ try{ ms.setActionHandler(a, fn); }catch(e){} }
+  on('play',  function(){ if(!engine.playing) start(); });
+  on('pause', function(){ if(engine.playing) stop(); });
+  on('stop',  function(){ hardStop(); });
+  on('nexttrack', function(){ next(); });
+  on('previoustrack', function(){ prev(); });
+}
+function mediaSessionUpdate(){
+  if(!('mediaSession' in navigator)) return;
+  var ms=navigator.mediaSession, s=currentSong();
+  var title = state.free ? 'Tom livre · '+keyLabel(state.key,state.mode) : (s ? s.t : 'Atmosfera');
+  var artist = s && !state.free ? keyLabel(state.key,state.mode)+(s.a ? ' · '+s.a : '') : 'pad de fundo';
+  var playing = engine.active();
+  var sig = title+'|'+artist+'|'+playing;
+  if(sig===msLast) return; msLast=sig;
+  try{
+    if(window.MediaMetadata) ms.metadata = new MediaMetadata({title:title, artist:artist, album:'Atmosfera',
+      artwork:[{src:'icon-192.png', sizes:'192x192', type:'image/png'},{src:'icon-512.png', sizes:'512x512', type:'image/png'}]});
+  }catch(e){}
+  try{ ms.playbackState = playing ? 'playing' : 'paused'; }catch(e){}
+}
+
+/* ---------- Guardião: o som só para por ação sua (Parar com fade, Parar seco) ou quando o app é fechado ----------
+   Se o sistema pausar a mídia ou interromper o áudio (outro app tomou o som, uma ligação, o celular "dormiu" o
+   navegador), o app tenta voltar sozinho em ~1,2 s, e de novo a cada 3 s enquanto não voltar — no máximo 8 vezes
+   por minuto, para não brigar sem fim com outro app que também insista. Quem toca em Parar, para de verdade. */
+var guard={timer:0, tries:0, since:0};
+function ctxRunning(){ return !!engine.ctx && engine.ctx.state==='running'; }
+function soundNeedsHelp(){
+  if(!engine.active()) return false;
+  if(!ctxRunning()) return true;
+  return !!media.el && media.el.paused;   // o pad toca, mas sem a proteção de mídia (tela apagada, outro app na frente)
+}
+function guardKick(){
+  if(guard.timer || !engine.active()) return;
+  var now=Date.now();
+  if(now-guard.since>60000){ guard.since=now; guard.tries=0; }
+  if(guard.tries>=8){ showCtxWarn(!ctxRunning()); return; }
+  guard.timer=setTimeout(function(){
+    guard.timer=0;
+    if(!engine.active()) return;
+    guard.tries++;
+    engine.resume(); mediaPlay(); keepAwake();
+    setTimeout(function(){ showCtxWarn(soundNeedsHelp() && !ctxRunning()); }, 600);
+  }, 1200);
+}
+setInterval(function(){
+  if(soundNeedsHelp()) guardKick();
+  else if(!engine.active()){ guard.tries=0; mediaPause(); mediaSessionUpdate(); } // em segundo plano o laço de desenho não roda; encerra a mídia por aqui
+}, 3000);
+window.addEventListener('focus', function(){ if(soundNeedsHelp()) guardKick(); });
+window.addEventListener('pageshow', function(){ if(soundNeedsHelp()) guardKick(); });
 
 /* ---------- Tela ligada ---------- */
 var wakeLock=null;
 function keepAwake(){
-  if(!('wakeLock' in navigator)) return;
+  if(!('wakeLock' in navigator) || document.visibilityState!=='visible') return;
   try{ navigator.wakeLock.request('screen').then(function(l){ wakeLock=l; }).catch(function(){}); }catch(e){}
 }
 function releaseAwake(){ if(wakeLock){ try{ wakeLock.release(); }catch(e){} wakeLock=null; } }
-document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible' && engine.playing) keepAwake(); });
+document.addEventListener('visibilitychange', function(){
+  if(document.visibilityState==='visible'){ if(engine.playing) keepAwake(); }
+  if(soundNeedsHelp()) guardKick();
+});
 
+function showCtxWarn(on){ var w=$('#ctxWarn'); if(on) w.classList.add('show'); else w.classList.remove('show'); }
 function onCtxState(s){
-  var w=$('#ctxWarn');
-  if(s==='interrupted' || (s==='suspended' && engine.playing)) w.classList.add('show'); else w.classList.remove('show');
+  if(s==='running'){ showCtxWarn(false); return; }
+  if(s==='interrupted' || (s==='suspended' && engine.active())){ showCtxWarn(true); guardKick(); }
 }
 
 /* ---------- Ações ---------- */
-function gesture(){ engine.ensure(); engine.resume(); unlockMedia(); }
+function gesture(){ engine.ensure(); engine.resume(); mediaPlay(); }
 function currentSong(){ return state.curId!=null ? songById(state.curId) : null; }
 function curIndex(){ return state.curId!=null ? state.seq.indexOf(state.curId) : -1; }
 function nextSong(){
@@ -1169,7 +1246,7 @@ function render(){
   for(var j=0;j<modes.length;j++){ modes[j].classList.toggle('active', modes[j].dataset.mode===state.mode); modes[j].setAttribute('aria-pressed', modes[j].dataset.mode===state.mode?'true':'false'); }
   var chips=$('#presets').children;
   for(var k=0;k<chips.length;k++){ chips[k].classList.toggle('active', chips[k].dataset.preset===state.settings.preset); chips[k].setAttribute('aria-pressed', chips[k].dataset.preset===state.settings.preset?'true':'false'); }
-  renderSeq(); renderLibrary(); renderStatus(); renderVolume();
+  renderSeq(); renderLibrary(); renderStatus(); renderVolume(); mediaSessionUpdate();
 }
 function renderVolume(fromFader){
   var v=state.settings.volume, pct=Math.round(v*100)+'%';
@@ -1222,7 +1299,7 @@ var SLIDERS=[
   {id:'xfade',  label:'Transição entre tons', min:2, max:40, step:1, fmt:function(v){ return Math.round(v)+' s'; }},
   {id:'bright', label:'Brilho', min:0, max:1, step:0.01, fmt:function(v){ return Math.round(v*100); }},
   {id:'reverb', label:'Reverb', min:0, max:1, step:0.01, fmt:function(v){ return Math.round(v*100); }},
-  {id:'motion', label:'Movimento interno', min:0, max:1, step:0.01, fmt:function(v){ return Math.round(v*100); }},
+  {id:'motion', label:'Movimento do brilho', min:0, max:1, step:0.01, fmt:function(v){ return v>0 ? Math.round(v*100) : 'parado'; }},
   {id:'width',  label:'Largura estéreo', min:0, max:1, step:0.01, fmt:function(v){ return Math.round(v*100); }}
 ];
 function buildSliders(){
@@ -1681,14 +1758,14 @@ function loop(){
   drawAura(); drawMeter();
   var now=performance.now(); if(now-lastStatus>200){ renderStatus(); lastStatus=now; }
   if(engine.active()) raf=requestAnimationFrame(loop);
-  else { raf=0; drawAura(); drawMeter(); renderStatus(); }
+  else { raf=0; drawAura(); drawMeter(); renderStatus(); mediaPause(); mediaSessionUpdate(); }
 }
 function kick(){ if(!raf) raf=requestAnimationFrame(loop); }
 window.addEventListener('resize', function(){ resizeAura(); if(!raf) drawAura(); });
 
 /* ---------- Início ---------- */
 load();
-buildKeys(); buildSliders(); buildMidi();
+buildKeys(); buildSliders(); buildMidi(); mediaSessionSetup();
 ensureCurrent();
 setPalco(state.palco);
 render();
