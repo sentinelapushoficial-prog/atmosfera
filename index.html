@@ -196,6 +196,12 @@ main{display:grid;gap:18px;margin-top:18px}
 .song .pick .a{font-size:.75rem;color:var(--parch-dim);font-weight:400}
 /* sugestões do catálogo: marca com "+" e tom da gravação original */
 .sug-head{color:var(--parch-dim);font-size:.82rem;margin-top:4px}
+.song.web{border-style:dotted}
+.song.web .mark{color:var(--amber);border-color:var(--amber);font-size:1.2rem;line-height:1}
+.song.web .pick .k{color:var(--amber)}
+.steps{padding-left:1.2em;list-style:decimal;display:grid;gap:6px;font-size:.9rem;color:var(--parch)}
+#lookupSetup input{border:1px solid var(--line);background:var(--ink-2);border-radius:10px;padding:10px 12px;min-height:44px;width:100%;min-width:0;font-size:.9rem}
+#lookupSetup .body{display:grid;gap:10px}
 .song.sug{border-style:dashed}
 .song.sug .mark{color:var(--amber);border-color:var(--amber);font-size:1.2rem;line-height:1}
 .song.sug .pick .k{color:var(--amber)}
@@ -338,9 +344,36 @@ body.palco .song .mark{width:36px;height:36px;font-size:1rem}
           <p class="sug-head">Ainda não cadastradas · tom da gravação original · um toque põe na lista</p>
           <ol class="setlist" id="suglist" aria-label="Sugestões"></ol>
         </div>
+        <div id="webBlock" hidden>
+          <p class="sug-head" id="webHead">Encontradas na internet · tom da cifra · um toque põe na lista</p>
+          <ol class="setlist" id="weblist" aria-label="Encontradas na internet"></ol>
+          <p class="hint" id="webStatus" hidden></p>
+        </div>
         <div class="search-more" id="searchMore" hidden>
           <button class="btn small" id="btnAddFromSearch" type="button">Cadastrar</button>
         </div>
+        <details id="lookupSetup">
+          <summary>Busca de tons na internet <span class="hint" id="lookupBadge"></span></summary>
+          <div class="body">
+            <p class="hint">Uma página no celular não tem permissão para ler outros sites. Um serviço gratuito, na sua conta Google, faz isso pelo app: procura a música no Cifra Club e lê o tom de cada versão encontrada. Publique uma vez e cole o endereço aqui.</p>
+            <ol class="plain steps">
+              <li>No computador, abra <b>script.google.com</b> → <b>Novo projeto</b>. Apague o conteúdo, cole o código (botão abaixo) e salve.</li>
+              <li><b>Implantar → Nova implantação</b> → tipo <b>App da Web</b> · Executar como: <b>Eu</b> · Quem pode acessar: <b>Qualquer pessoa</b> → Implantar e autorizar.</li>
+              <li>Copie a URL que termina em <b>/exec</b>, cole abaixo, toque em <b>Salvar</b> e em <b>Testar</b>.</li>
+            </ol>
+            <div class="io-tools">
+              <button class="btn small" id="btnCopyScript" type="button">Copiar código do serviço</button>
+              <a class="btn small ghost" href="atmosfera-tons.gs" download="atmosfera-tons.gs">Baixar o código</a>
+            </div>
+            <input type="url" id="lookupUrl" placeholder="https://script.google.com/macros/s/…/exec" aria-label="Endereço do serviço" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="url">
+            <div class="io-tools">
+              <button class="btn small primary" id="btnLookupSave" type="button">Salvar</button>
+              <button class="btn small" id="btnLookupTest" type="button">Testar</button>
+              <button class="btn small ghost" id="btnLookupClear" type="button">Desligar</button>
+            </div>
+            <p class="hint" id="lookupStatus"></p>
+          </div>
+        </details>
         <form class="addform" id="addForm" autocomplete="off">
           <input type="text" id="addTitle" placeholder="Nome da música" aria-label="Nome da música" maxlength="60">
           <input type="text" id="addArtist" placeholder="Cantor ou ministério (opcional)" aria-label="Artista" maxlength="60">
@@ -607,7 +640,7 @@ var CATALOG_RAW = [
 ];
 
 /* ---------- Repertório inicial ---------- */
-var APP_VERSION = '1.3';
+var APP_VERSION = '1.4';
 var DEFAULT_SETLIST = [
   {id:'d1', t:'Galileu',                           a:'Fernandinho',    k:10, m:'menor'},
   {id:'d2', t:'Canção do Céu',                     a:'Mauro Henrique', k:6,  m:'maior'},
@@ -618,7 +651,7 @@ var DEFAULT_SETLIST = [
   {id:'d7', t:'Quebrantado',                       a:'Vineyard',       k:0,  m:'maior'}
 ];
 var DEFAULT_SEQ = ['d1','d2','d3','d4','d5','d6','d7'];
-var DEFAULT_SETTINGS = {preset:'quente', volume:0.8, fadeIn:10, xfade:10, bright:0.5, reverb:0.45, motion:0.5, width:0.4};
+var DEFAULT_SETTINGS = {preset:'quente', volume:0.8, fadeIn:10, xfade:10, bright:0.5, reverb:0.45, motion:0.5, width:0.4, lookupUrl:''};
 
 /* Dois conjuntos: o repertório (todas as músicas cadastradas, cada uma com o tom em que a igreja toca)
    e a sequência de hoje (ids do repertório, na ordem em que foram tocados). Próxima/Anterior andam pela sequência. */
@@ -1307,14 +1340,118 @@ function renderLibrary(){
   var cm = qq.length>=2 ? catalogMatches(q) : [];
   sug.hidden = !cm.length;
   cm.forEach(function(c){ sl.appendChild(sugRow(c)); });
+  scheduleWeb(qq);
+  renderWeb();
 }
-function addFromCatalog(c){
-  var s={id:newId(), t:c.t.slice(0,60), a:c.a.slice(0,60), k:c.k, m:c.m};
+/* ---------- Busca de tons na internet (serviço publicado pelo usuário no Google Apps Script) ---------- */
+var WEB_STORE='atmosfera.web', webCache={}, webTimer=0, webSeq=0, webState={q:'', status:'', results:null};
+try{ var wc=JSON.parse(localStorage.getItem(WEB_STORE)||'{}'); if(wc && typeof wc==='object') webCache=wc; }catch(e){}
+function saveWebCache(){
+  try{
+    var keys=Object.keys(webCache);
+    if(keys.length>150){ keys.sort(function(a,b){ return webCache[a].ts-webCache[b].ts; }); keys.slice(0,keys.length-150).forEach(function(k){ delete webCache[k]; }); }
+    localStorage.setItem(WEB_STORE, JSON.stringify(webCache));
+  }catch(e){}
+}
+function lookupUrl(){ var u=String(state.settings.lookupUrl||'').trim(); return /^https:\/\//.test(u) ? u : ''; }
+function webRequest(qq){
+  var u=lookupUrl();
+  return fetch(u+(u.indexOf('?')>=0?'&':'?')+'q='+encodeURIComponent(qq), {mode:'cors', cache:'no-store'})
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(!d || typeof d!=='object') throw new Error('resposta inválida');
+      if(!d.ok) throw new Error(d.error || 'o serviço respondeu com erro');
+      return (d.results||[]).map(function(x){
+        var pk=parseKey(x.k||''); if(!pk || !x.t) return null;
+        return {t:String(x.t).slice(0,60), a:String(x.a||'').slice(0,60), k:pk.k, m:pk.m, src:String(x.src||'internet').slice(0,40)};
+      }).filter(Boolean);
+    });
+}
+function scheduleWeb(qq){
+  if(!lookupUrl() || qq.length<3){ if(webTimer){ clearTimeout(webTimer); webTimer=0; } webState={q:'', status:'', results:null}; return; }
+  var key=norm(qq);
+  if(webState.q===key && (webState.status || webState.results)) return;   // já pendente, pronto ou com erro para este nome
+  if(webTimer){ clearTimeout(webTimer); webTimer=0; }
+  var hit=webCache[key];
+  if(hit && Date.now()-hit.ts < 7*86400e3){ webState={q:key, status:'', results:hit.results}; return; }
+  webState={q:key, status:'buscando', results:null};
+  webTimer=setTimeout(function(){ webTimer=0; runWeb(key, qq); }, 600);
+}
+function runWeb(key, qq){
+  var seq=++webSeq;
+  webRequest(qq).then(function(res){
+    if(seq!==webSeq) return;
+    webCache[key]={ts:Date.now(), results:res}; saveWebCache();
+    webState={q:key, status:'', results:res}; renderWeb();
+  }).catch(function(err){
+    if(seq!==webSeq) return;
+    webState={q:key, status:'erro: '+(navigator.onLine ? (err && err.message || 'sem resposta do serviço') : 'sem internet'), results:null}; renderWeb();
+  });
+}
+function renderWeb(){
+  var block=$('#webBlock'), ol=$('#weblist'), st=$('#webStatus'); ol.textContent='';
+  var qq=query.trim(), q=norm(qq);
+  if(!lookupUrl() || qq.length<3 || webState.q!==q){ block.hidden=true; return; }
+  block.hidden=false;
+  if(webState.status==='buscando'){ st.hidden=false; st.textContent='Buscando na internet…'; return; }
+  if(webState.status){ st.hidden=false; st.textContent='Não deu para buscar na internet ('+webState.status.replace(/^erro: /,'')+').'; return; }
+  var have={}; state.setlist.forEach(function(s){ have[norm(s.t)+'|'+norm(s.a||'')]=true; have[norm(s.t)+'|']=true; });
+  var shown={}; catalogMatches(q).forEach(function(c){ shown[c.nt+'|'+c.na]=true; });
+  var list=(webState.results||[]).filter(function(r){ var k=norm(r.t)+'|'+norm(r.a); return !have[k] && !have[norm(r.t)+'|'] && !shown[k]; });
+  if(!list.length){ st.hidden=false; st.textContent = (webState.results||[]).length ? 'As versões encontradas na internet já estão acima.' : 'Nada encontrado na internet para “'+qq+'”.'; return; }
+  st.hidden=true;
+  list.forEach(function(r){ ol.appendChild(webRow(r)); });
+}
+function webRow(r){
+  var li=el('li','song web');
+  var pick=el('button','pick'); pick.type='button';
+  pick.setAttribute('aria-label','Entrar na lista: '+r.t+', '+r.a+', tom '+keyLabel(r.k,r.m));
+  var mark=el('span','mark','+'); mark.setAttribute('aria-hidden','true');
+  pick.appendChild(mark);
+  var tt=el('span','tt'); tt.appendChild(el('span','t',r.t)); tt.appendChild(el('span','a',(r.a?r.a+' · ':'')+r.src));
+  pick.appendChild(tt);
+  pick.appendChild(el('span','k',keyLabel(r.k,r.m)));
+  pick.addEventListener('click', function(){ addFromCatalog({t:r.t, a:r.a, k:r.k, m:r.m}, 'tom da cifra'); });
+  li.appendChild(pick);
+  return li;
+}
+function renderLookupSetup(){
+  var u=lookupUrl();
+  $('#lookupUrl').value=String(state.settings.lookupUrl||'');
+  $('#lookupBadge').textContent = u ? '· ligada' : '· desligada';
+}
+$('#btnLookupSave').addEventListener('click', function(){
+  var u=$('#lookupUrl').value.trim();
+  if(u && !/^https:\/\//.test(u)){ $('#lookupStatus').textContent='O endereço precisa começar com https://'; return; }
+  state.settings.lookupUrl=u; save(); webCache={}; saveWebCache(); renderLookupSetup();
+  $('#lookupStatus').textContent = u ? 'Salvo. Toque em Testar para conferir.' : 'Busca na internet desligada.';
+  webState={q:'',status:'',results:null}; renderLibrary();
+});
+$('#btnLookupClear').addEventListener('click', function(){ $('#lookupUrl').value=''; $('#btnLookupSave').click(); });
+$('#btnLookupTest').addEventListener('click', function(){
+  var st=$('#lookupStatus');
+  if(!lookupUrl()){ st.textContent='Cole o endereço do serviço e toque em Salvar antes de testar.'; return; }
+  st.textContent='Testando… (a primeira resposta pode levar alguns segundos)';
+  webRequest('galileu').then(function(res){
+    if(!res.length){ st.textContent='O serviço respondeu, mas não encontrou nenhuma versão de “galileu”. Abra o endereço com ?q=galileu&debug=1 no navegador e me mande o que aparecer.'; return; }
+    st.textContent='Serviço funcionando: '+res.length+' versão(ões) de “galileu”. Ex.: '+res[0].t+' · '+res[0].a+' · '+keyLabel(res[0].k,res[0].m)+'.';
+  }).catch(function(err){ st.textContent='Falhou: '+(err && err.message || 'sem resposta')+'. Confira se a implantação está como “App da Web” com acesso “Qualquer pessoa” e se o endereço termina em /exec.'; });
+});
+$('#btnCopyScript').addEventListener('click', function(){
+  var st=$('#lookupStatus'); st.textContent='Copiando…';
+  fetch('atmosfera-tons.gs', {cache:'no-store'}).then(function(r){ return r.text(); }).then(function(txt){
+    if(navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(txt).then(function(){ st.textContent='Código copiado. Cole no editor do script.google.com.'; });
+    var ta=$('#ioText'); ta.value=txt; ta.select(); document.execCommand('copy'); st.textContent='Código copiado (via caixa de texto).';
+  }).catch(function(){ st.textContent='Não deu para copiar aqui; use o botão Baixar o código.'; });
+});
+function addFromCatalog(c, label){
+  var s={id:newId(), t:c.t.slice(0,60), a:(c.a||'').slice(0,60), k:c.k, m:c.m};
+  if(!s.a) delete s.a;
   state.setlist.push(s);
   state.seq.push(s.id);
   ensureCurrent();
   save(); render();
-  flash('“'+s.t+'” entrou na lista em '+keyLabel(s.k,s.m)+' (tom original) e é a '+state.seq.length+'ª da sequência. Se vocês tocam em outro tom, use o ✎.');
+  flash('“'+s.t+'” entrou na lista em '+keyLabel(s.k,s.m)+' ('+(label||'tom original')+') e é a '+state.seq.length+'ª da sequência. Se vocês tocam em outro tom, use o ✎.');
 }
 var flashTimer=0;
 function flash(msg){
@@ -1556,6 +1693,7 @@ render();
 resizeAura(); drawAura(); drawMeter();
 setTimeout(function(){ resizeAura(); drawAura(); }, 300);
 $('#version').textContent='Atmosfera · versão '+APP_VERSION;
+renderLookupSetup();
 
 /* ---------- App instalável: cache para abrir sem internet (só quando a página é a principal, em https).
    Quando uma versão nova é baixada, aparece um aviso; a página nunca recarrega sozinha. ---------- */
