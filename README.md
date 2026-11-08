@@ -12,12 +12,19 @@ Funciona como app instalável (PWA): abre sem internet depois da primeira visita
 
 - Fades lineares em decibéis (de −50 dB até cheio): o crescimento soa parelho do começo ao fim. Troca de tom por
   crossfade de potência constante.
-- Nível parado por construção: sem LFO de amplitude, sem desafinação entre osciladores, sem chorus; quintas justas;
-  largura estéreo por pans fixos. O "Movimento do brilho" vem desligado (só mexe no filtro se o usuário ligar).
-- Limitador só de segurança (−1 dB); o nível de trabalho é `BUS_GAIN` no `index.html`.
+- Timbre: ondas desenhadas por harmônicos (`makeWaves`), fases iniciais aleatórias (o acorde não se "cola" numa
+  onda pontuda), oitavas exatas e quinta justa (`TUNING`), filtro passa-baixas em dois estágios (24 dB/oit).
+- Ensemble polifásico (`ENS`): seis linhas de atraso moduladas por um LFO lento e um rápido, fases a 60° — o que
+  uma linha tira a outra devolve, então o som gira sem o nível oscilar (ondulação medida ≤ 0,8 dB). As linhas saem
+  espalhadas no estéreo; a soma em mono continua estável. O controle "Ensemble" regula a profundidade.
+- Shimmer: cópia uma oitava acima (deslocador granular, `makeShifter`) entra só no reverb.
+- Sem LFO de amplitude e sem desafinação entre osciladores de uma mesma nota. Limitador só de segurança (−1 dB);
+  o nível de trabalho é `BUS_GAIN`.
 - Segundo plano: enquanto o pad toca, um `<audio>` com 30 s de silêncio em loop toca junto, e a Media Session mostra
   música e tom na notificação e na tela de bloqueio (Pausar, Próxima, Anterior). Se o sistema pausar a mídia ou
   interromper o áudio, o app tenta voltar sozinho (até 8 vezes por minuto). Só para com Parar ou ao fechar o app.
+- `test_audio.py` renderiza o motor num OfflineAudioContext e mede fade, ondulação e picos; `test_shifter.py`
+  confere o shimmer; `test_bg.py` o comportamento de mídia/Media Session.
 
 ## Publicar uma versão nova
 

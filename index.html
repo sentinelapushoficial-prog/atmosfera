@@ -490,14 +490,31 @@ function hueOf(pc){ return ((pc*7)%12)*30; }
 function mtof(m){ return 440*Math.pow(2,(m-69)/12); }
 
 /* ---------- Presets de som ---------- */
-/* Cada preset: filtro, osciladores por nota [forma, ganho] (sem desafinação entre eles: nada bate, o nível fica parado),
-   peso do sub e dos agudos, largura, reverb, alcance do movimento do brilho (só se o usuário ligar) e vibrato (cents). */
+/* Cada preset: filtro (24 dB/oit, dois estágios), osciladores por nota [onda, ganho] — a onda é uma das formas
+   desenhadas em makeWaves ou uma nativa —, peso do sub e dos agudos, largura, reverb, profundidade do ensemble
+   (lento e rápido, multiplicam o controle "Ensemble") e quanto da oitava acima ("shimmer") entra no reverb. */
 var PRESETS = {
-  quente:  {label:'Quente',  desc:'analógico, redondo',        cutoff:950,  q:0.8, oscs:[['sawtooth',0.55],['triangle',0.7]],  sub:0.5,  high:0.16, width:0.4,  reverb:0.45, lfoDepth:260, vib:0,   shimmer:false},
-  cristal: {label:'Cristal', desc:'claro, com brilho no alto', cutoff:2300, q:0.6, oscs:[['sawtooth',0.4],['sine',0.6]],       sub:0.32, high:0.42, width:0.5,  reverb:0.6,  lfoDepth:200, vib:0,   shimmer:true},
-  cordas:  {label:'Cordas',  desc:'conjunto, com vibrato leve',cutoff:1700, q:0.7, oscs:[['sawtooth',0.6],['triangle',0.3]],   sub:0.28, high:0.2,  width:0.65, reverb:0.4,  lfoDepth:150, vib:4.6, shimmer:false},
-  profundo:{label:'Profundo',desc:'escuro, cinematográfico',   cutoff:680,  q:0.9, oscs:[['sawtooth',0.5],['triangle',0.8]],   sub:0.75, high:0.08, width:0.35, reverb:0.55, lfoDepth:360, vib:0,   shimmer:false}
+  quente:  {label:'Quente',  desc:'analógico, redondo',          cutoff:900,  q:0.6, oscs:[['warm',0.8],['triangle',0.35]],   sub:0.42, high:0.14, width:0.5,  reverb:0.45, ens:1.0, ensFast:0.6, shimmer:0.12},
+  cristal: {label:'Cristal', desc:'claro, com shimmer no alto',  cutoff:2200, q:0.55,oscs:[['glass',0.7],['sine',0.4]],       sub:0.28, high:0.4,  width:0.6,  reverb:0.6,  ens:0.7, ensFast:1.0, shimmer:0.4},
+  cordas:  {label:'Cordas',  desc:'ensemble de cordas, vibrato leve', cutoff:1600, q:0.6, oscs:[['string',0.8],['triangle',0.2]], sub:0.25, high:0.2,  width:0.75, reverb:0.4,  ens:1.3, ensFast:1.8, shimmer:0.1},
+  profundo:{label:'Profundo',desc:'escuro, cinematográfico',     cutoff:650,  q:0.7, oscs:[['warm',0.7],['triangle',0.6]],    sub:0.65, high:0.08, width:0.4,  reverb:0.55, ens:0.8, ensFast:0.4, shimmer:0.18}
 };
+/* Formas de onda desenhadas por harmônicos (o navegador limita a banda sozinho, sem aliasing).
+   warm: dente de serra que cai um pouco mais rápido no agudo, com os pares levemente contidos — redondo, analógico.
+   string: dente de serra franca (1/k), a onda dos ensembles de cordas.
+   glass: ímpares dominantes caindo em 1/k^1.6 e pares a 35% — oco, vítreo. */
+function makeWaves(c){
+  function wave(fn){
+    var N=48, re=new Float32Array(N+1), im=new Float32Array(N+1);
+    for(var k=1;k<=N;k++) im[k]=fn(k);
+    return c.createPeriodicWave(re, im);
+  }
+  return {
+    warm:   wave(function(k){ return Math.pow(k,-1.15)*(k%2 ? 1 : 0.8); }),
+    string: wave(function(k){ return 1/k; }),
+    glass:  wave(function(k){ return Math.pow(k,-1.6)*(k%2 ? 1 : 0.35); })
+  };
+}
 
 /* ---------- Catálogo embutido: tom da gravação original (fichas "Original Master" do MultiTracks e cifras oficiais) ----------
    Formato: Título|Artista|Tom. Serve para sugerir o tom; o tom em que a igreja toca é o que fica no repertório (editável). */
@@ -645,7 +662,7 @@ var CATALOG_RAW = [
 ];
 
 /* ---------- Repertório inicial ---------- */
-var APP_VERSION = '1.6';
+var APP_VERSION = '1.7';
 var DEFAULT_SETLIST = [
   {id:'d1', t:'Galileu',                           a:'Fernandinho',    k:10, m:'menor'},
   {id:'d2', t:'Canção do Céu',                     a:'Mauro Henrique', k:6,  m:'maior'},
@@ -656,7 +673,7 @@ var DEFAULT_SETLIST = [
   {id:'d7', t:'Quebrantado',                       a:'Vineyard',       k:0,  m:'maior'}
 ];
 var DEFAULT_SEQ = ['d1','d2','d3','d4','d5','d6','d7'];
-var DEFAULT_SETTINGS = {preset:'quente', volume:0.8, fadeIn:10, xfade:10, bright:0.5, reverb:0.45, motion:0, width:0.4, lookupUrl:'', engine:6};
+var DEFAULT_SETTINGS = {preset:'quente', volume:0.8, fadeIn:10, xfade:10, bright:0.5, reverb:0.45, motion:0.6, width:0.5, lookupUrl:'', engine:7};
 
 /* Dois conjuntos: o repertório (todas as músicas cadastradas, cada uma com o tom em que a igreja toca)
    e a sequência de hoje (ids do repertório, na ordem em que foram tocados). Próxima/Anterior andam pela sequência. */
@@ -692,8 +709,8 @@ function load(){
     var d = JSON.parse(raw);
     if(d.settings){ for(var k in DEFAULT_SETTINGS){ if(typeof d.settings[k]==='number' || typeof d.settings[k]==='string') state.settings[k]=d.settings[k]; } }
     if(ver===1){ state.settings.fadeIn=Math.max(state.settings.fadeIn,DEFAULT_SETTINGS.fadeIn); state.settings.xfade=Math.max(state.settings.xfade,DEFAULT_SETTINGS.xfade); }
-    // motor 6: o "movimento" passou a mexer só no brilho e vem desligado; quem vinha das versões anteriores começa parado
-    if(!(d.settings && d.settings.engine>=6)){ state.settings.motion=0; state.settings.engine=6; }
+    // motor 7: o controle "Movimento" virou "Ensemble" (outro significado): quem vem de versões anteriores recebe o padrão
+    if(!(d.settings && d.settings.engine>=7)){ state.settings.motion=DEFAULT_SETTINGS.motion; state.settings.width=DEFAULT_SETTINGS.width; state.settings.engine=7; }
     if(!PRESETS[state.settings.preset]) state.settings.preset='quente';
     state.settings.fadeIn=clamp(state.settings.fadeIn,2,40); state.settings.xfade=clamp(state.settings.xfade,2,40);
     if(Array.isArray(d.setlist)) state.setlist = sanitizeList(d.setlist);
@@ -783,20 +800,53 @@ Engine.prototype.resume = function(){
   if(!this.ctx) return;
   if(this.ctx.state!=='running'){ try{ var p=this.ctx.resume(); if(p && p.catch) p.catch(function(){}); }catch(e){} }
 };
-/* Cadeia: vozes → bus → reverb (seco + convolução) → limitador de segurança → volume → medidor → saída.
-   Sem chorus nem delays modulados: nada no caminho mexe no nível com o tempo. O limitador fica alto (−1 dB)
-   e só entra em pico raro; o nível de trabalho é dado pelo ganho do bus, abaixo dele. */
-var BUS_GAIN = 0.8;
+/* Cadeia: vozes → bus → passa-altas 40 Hz → ensemble trifásico → [shimmer] → reverb → limitador de segurança
+   → volume → medidor → saída.
+   Ensemble: a ideia do Solina levada adiante — seis linhas de atraso (≈5 ms) moduladas por um LFO lento e um
+   rápido, cada linha com a fase dos LFOs deslocada 60°. Somadas, o que uma linha tira a outra devolve (com seis
+   fases, até os termos de ordem alta se cancelam): o som gira e brilha sem o nível subir e descer. As linhas saem
+   espalhadas da esquerda à direita — é daí que vem a largura — e a soma em mono continua estável.
+   Shimmer: uma cópia do som uma oitava acima (deslocador de altura granular) entra só no reverb, nunca seca.
+   O limitador fica alto (−1 dB) e só pega pico raro; o nível de trabalho é o ganho do bus. */
+var BUS_GAIN = 1.0;
+var TUNING = {fifth: 1.5};   // quinta justa (3:2): 2 cents acima da temperada — ninguém ouve a diferença contra a banda,
+                             // mas dentro do pad ela some com o batimento lento entre a quinta e o 3º harmônico da tônica
+var ENS = {lines:6, slowHz:0.9, fastHz:6.2, slowDepth:0.00024, fastDepth:0.00008, base:0.0053, spread:0.00005};
 Engine.prototype.build = function(){
-  var c=this.ctx;
+  var c=this.ctx, t0=c.currentTime+0.05;
+  this.waves = makeWaves(c);
   this.bus = c.createGain(); this.bus.gain.value=BUS_GAIN;
+  this.hp = c.createBiquadFilter(); this.hp.type='highpass'; this.hp.frequency.value=40; this.hp.Q.value=0.7;
+  this.bus.connect(this.hp);
+
+  // Ensemble polifásico: N linhas, fases dos LFOs igualmente espaçadas (360°/N), saídas espalhadas no estéreo
+  this.ensOut = c.createGain(); this.ensOut.gain.value=1;
+  this.lines=[]; this.lfos=[];
+  var N=ENS.lines;
+  for(var k=0;k<N;k++){
+    var d=c.createDelay(0.05); d.delayTime.value=ENS.base+ENS.spread*(k-(N-1)/2);
+    var sl=c.createOscillator(); sl.type='sine'; sl.frequency.value=ENS.slowHz; var slg=c.createGain(); slg.gain.value=0; sl.connect(slg); slg.connect(d.delayTime);
+    var fl=c.createOscillator(); fl.type='sine'; fl.frequency.value=ENS.fastHz; var flg=c.createGain(); flg.gain.value=0; fl.connect(flg); flg.connect(d.delayTime);
+    sl.start(t0 + k/(N*ENS.slowHz)); fl.start(t0 + ((k*5)%N)/(N*ENS.fastHz));   // fases 0°, 60°, 120°… (o rápido em outra ordem, para não casar com o lento)
+    var g=c.createGain(); g.gain.value=1/N;
+    var pan=c.createStereoPanner ? c.createStereoPanner() : null;
+    this.hp.connect(d); d.connect(g);
+    if(pan){ g.connect(pan); pan.connect(this.ensOut); } else g.connect(this.ensOut);
+    this.lines.push({d:d, slg:slg, flg:flg, pan:pan, side:-1+2*k/(N-1)});
+    this.lfos.push(sl, fl);
+  }
+
+  // Shimmer (oitava acima, só para o reverb)
+  this.shifter = makeShifter(c, 2, t0);
+  this.shimG = c.createGain(); this.shimG.gain.value=0;
+  this.ensOut.connect(this.shifter.input); this.shifter.output.connect(this.shimG);
 
   // Reverb por convolução com resposta gerada (cauda longa que escurece)
   this.rvDry = c.createGain(); this.rvWet = c.createGain();
-  this.pre = c.createDelay(0.2); this.pre.delayTime.value=0.028;
+  this.pre = c.createDelay(0.2); this.pre.delayTime.value=0.03;
   this.conv = c.createConvolver(); this.conv.buffer = this.makeIR(6.5);
-  this.bus.connect(this.rvDry);
-  this.bus.connect(this.pre); this.pre.connect(this.conv); this.conv.connect(this.rvWet);
+  this.ensOut.connect(this.rvDry);
+  this.ensOut.connect(this.pre); this.shimG.connect(this.pre); this.pre.connect(this.conv); this.conv.connect(this.rvWet);
 
   // Limitador de segurança, volume, medidor
   this.limiter = c.createDynamicsCompressor();
@@ -809,6 +859,26 @@ Engine.prototype.build = function(){
   this.master.connect(this.analyser); this.analyser.connect(c.destination);
   this.applySettings();
 };
+/* Deslocador de altura granular: duas linhas de atraso cujo tempo cai em rampa — o som é lido mais rápido do que
+   entra, subindo de altura — e janelas em cosseno que se revezam, zerando exatamente na hora do salto da rampa.
+   Rampa e janela são buffers em loop (amostra a amostra, sem o arredondamento das ondas dos osciladores).
+   ratio 2 = uma oitava acima. O tremor dos grãos (8 Hz) some dentro do reverb. */
+function makeShifter(c, ratio, t0){
+  var F=8, T=1/F, N=Math.round(c.sampleRate*T), input=c.createGain(), output=c.createGain();
+  var G=-(ratio-1)*T/2;                 // a rampa vai de −1 a 1 em T → d(atraso)/dt = 2G/T = −(ratio−1)
+  var D0=Math.abs(G)+0.004;             // atraso base: a rampa nunca chega a zero
+  var ramp=c.createBuffer(1,N,c.sampleRate), win=c.createBuffer(1,N,c.sampleRate), rd=ramp.getChannelData(0), wd=win.getChannelData(0);
+  for(var i=0;i<N;i++){ rd[i]=-1+2*i/N; wd[i]=0.5-0.5*Math.cos(2*Math.PI*i/N); }   // a janela é zero onde a rampa salta
+  function loopSrc(buf, when){ var s=c.createBufferSource(); s.buffer=buf; s.loop=true; s.start(when); return s; }
+  for(var k=0;k<2;k++){
+    var when=t0 + k*T/2;
+    var d=c.createDelay(0.5); d.delayTime.value=D0;
+    var rg=c.createGain(); rg.gain.value=G; loopSrc(ramp, when).connect(rg); rg.connect(d.delayTime);
+    var w=c.createGain(); w.gain.value=0; loopSrc(win, when).connect(w.gain);
+    input.connect(d); d.connect(w); w.connect(output);
+  }
+  return {input:input, output:output};
+}
 Engine.prototype.makeIR = function(seconds){
   var c=this.ctx, sr=c.sampleRate, len=Math.floor(sr*seconds);
   var buf=c.createBuffer(2,len,sr);
@@ -840,12 +910,18 @@ Engine.prototype.applySettings = function(){
   var r=S.reverb;
   this.rvDry.gain.setTargetAtTime(1-0.55*r, now, 0.05);
   this.rvWet.gain.setTargetAtTime(1.15*r, now, 0.05);
+  this.shimG.gain.setTargetAtTime(P.shimmer*r*1.3, now, 0.05);
+  for(var k=0;k<this.lines.length;k++){
+    var L=this.lines[k];
+    L.slg.gain.setTargetAtTime(ENS.slowDepth*P.ens*S.motion, now, 0.2);
+    L.flg.gain.setTargetAtTime(ENS.fastDepth*P.ensFast*S.motion, now, 0.2);
+    if(L.pan) L.pan.pan.setTargetAtTime(L.side*0.9*S.width, now, 0.1);
+  }
   var cutoff=this.cutoffFor(P,S);
   for(var i=0;i<this.all.length;i++){
     var v=this.all[i];
-    v.filter.frequency.setTargetAtTime(cutoff, now, 0.1);
-    v.fLfoG.gain.setTargetAtTime(P.lfoDepth*2*S.motion, now, 0.1);
-    for(var j=0;j<v.pans.length;j++) v.pans[j].node.pan.setTargetAtTime(v.pans[j].side*PAN_SPREAD*S.width, now, 0.1);
+    v.f1.frequency.setTargetAtTime(cutoff, now, 0.1);
+    v.f2.frequency.setTargetAtTime(cutoff, now, 0.1);
   }
 };
 Engine.prototype.unmute = function(){
@@ -904,57 +980,51 @@ Engine.prototype.level = function(){
 };
 
 /* Uma voz = um acorde de pad num tom. Entra e sai só por fade.
-   Nível parado por construção: nenhum LFO de amplitude, nenhuma desafinação entre osciladores (nada bate),
-   quintas justas (3:2) para a forma de onda ser periódica, e a largura estéreo vem de pans fixos por nota. */
-var PAN_SPREAD = 0.5;
+   Nível parado por construção: nenhum LFO de amplitude e nenhuma desafinação entre os osciladores de uma nota
+   (nada bate devagar). A vida vem do ensemble, que mexe no timbre sem mexer no nível. Cada oscilador começa com
+   uma fase aleatória: as notas não se "colam" numa única onda pontuda — o acorde soa como acorde, não como zumbido.
+   Oitavas exatas, quinta justa (ver TUNING), terça temperada. Filtro passa-baixas em dois estágios (24 dB/oit), redondo. */
 function Voice(engine, pc, mode, P, S){
   var c=engine.ctx; this.c=c; this.engine=engine; this.pc=pc; this.mode=mode; this.hue=hueOf(pc); this.seed=Math.random()*6.28;
   this.out=c.createGain(); this.out.gain.value=0;
-  this.filter=c.createBiquadFilter(); this.filter.type='lowpass'; this.filter.Q.value=P.q; this.filter.frequency.value=engine.cutoffFor(P,S);
-  this.filter.connect(this.out); this.out.connect(engine.bus);
-  // movimento do brilho: desligado por padrão (ganho 0 → o filtro fica parado)
-  this.fLfo=c.createOscillator(); this.fLfo.frequency.value=0.05+Math.random()*0.05;
-  this.fLfoG=c.createGain(); this.fLfoG.gain.value=P.lfoDepth*2*S.motion;
-  this.fLfo.connect(this.fLfoG); this.fLfoG.connect(this.filter.detune);
-  this.oscs=[]; this.lfos=[this.fLfo]; this.pans=[];
-  if(P.vib){ this.vib=c.createOscillator(); this.vib.frequency.value=P.vib; this.vibG=c.createGain(); this.vibG.gain.value=3; this.vib.connect(this.vibG); this.lfos.push(this.vib); }
-  var notes=this.voicing(pc,mode,P), canPan=!!c.createStereoPanner;
+  var cutoff=engine.cutoffFor(P,S);
+  this.f1=c.createBiquadFilter(); this.f1.type='lowpass'; this.f1.Q.value=P.q; this.f1.frequency.value=cutoff;
+  this.f2=c.createBiquadFilter(); this.f2.type='lowpass'; this.f2.Q.value=P.q; this.f2.frequency.value=cutoff;
+  this.f1.connect(this.f2); this.f2.connect(this.out); this.out.connect(engine.bus);
+  this.oscs=[];
+  var notes=this.voicing(pc,mode,P), t=c.currentTime;
   for(var i=0;i<notes.length;i++){
     var n=notes[i];
-    var ng=c.createGain(); ng.gain.value=n.level*0.2;
-    if(canPan && n.side){ var pan=c.createStereoPanner(); pan.pan.value=n.side*PAN_SPREAD*S.width; ng.connect(pan); pan.connect(this.filter); this.pans.push({node:pan, side:n.side}); }
-    else ng.connect(this.filter);
+    var ng=c.createGain(); ng.gain.value=n.level*0.2; ng.connect(this.f1);
     var set=n.oscs||P.oscs;
     for(var j=0;j<set.length;j++){
-      var o=c.createOscillator(); o.type=set[j][0]; o.frequency.value=n.freq;
+      var o=c.createOscillator(), w=set[j][0];
+      if(engine.waves[w]) o.setPeriodicWave(engine.waves[w]); else o.type=w;
+      o.frequency.value=n.freq;
       var og=c.createGain(); og.gain.value=set[j][1]; o.connect(og); og.connect(ng);
-      if(this.vibG) this.vibG.connect(o.detune);
+      o.start(t + Math.random()*0.03);   // fase aleatória (o fade ainda está abaixo de −50 dB)
       this.oscs.push(o);
     }
   }
-  var t=c.currentTime;
-  for(var k=0;k<this.oscs.length;k++) this.oscs[k].start(t);
-  for(var l=0;l<this.lfos.length;l++) this.lfos[l].start(t);
   this.curve=new Float32Array([0,0]); this.t0=t; this.dur=0.001; this.fadeEnd=t;
   this.disposed=false;
 }
 Voice.prototype.voicing = function(pc, mode, P){
   var root = pc>=7 ? 36+pc : 48+pc;         // tônicas entre Sol2 e Fá♯3
-  var f0 = mtof(root), third = MODES[mode].third;
+  var f0 = mtof(root), third = MODES[mode].third, q5 = TUNING.fifth;
   var notes=[
-    {freq:f0/2,   level:P.sub,  side:0,  oscs:[['sine',0.9],['triangle',0.3]]},
-    {freq:f0,     level:0.9,    side:0},
-    {freq:f0*1.5, level:0.7,    side:-1},
-    {freq:f0*2,   level:0.6,    side:1},
-    {freq:f0*3,   level:0.42,   side:-1},
-    {freq:f0*4,   level:P.high, side:1,  oscs:[['sine',0.7],['triangle',0.3]]}
+    {freq:f0/2,    level:P.sub,  oscs:[['sine',0.85],['triangle',0.25]]},
+    {freq:f0,      level:0.9},
+    {freq:f0*q5,   level:0.68},
+    {freq:f0*2,    level:0.58},
+    {freq:f0*2*q5, level:0.4},
+    {freq:f0*4,    level:P.high, oscs:[['sine',0.7],['triangle',0.3]]}
   ];
   if(third!=null){
-    var r3 = Math.pow(2, third/12);          // terça temperada, igual à da banda
-    notes.push({freq:f0*2*r3, level:0.36,        side:1});
-    notes.push({freq:f0*4*r3, level:P.high*0.55, side:-1, oscs:[['sine',0.8]]});
+    var r3 = Math.pow(2, third/12);
+    notes.push({freq:f0*2*r3, level:0.34});
+    notes.push({freq:f0*4*r3, level:P.high*0.5, oscs:[['sine',0.8]]});
   }
-  if(P.shimmer) notes.push({freq:f0*6, level:P.high*0.45, side:0, oscs:[['sine',0.8]]});
   return notes;
 };
 Voice.prototype.currentGain = function(){
@@ -996,7 +1066,6 @@ Voice.prototype.dispose = function(){
   if(this.disposed) return; this.disposed=true;
   var t=this.c.currentTime, i;
   for(i=0;i<this.oscs.length;i++){ try{ this.oscs[i].stop(t); }catch(e){} }
-  for(i=0;i<this.lfos.length;i++){ try{ this.lfos[i].stop(t); }catch(e){} }
   var self=this;
   setTimeout(function(){ try{ self.out.disconnect(); }catch(e){} }, 100);
   this.engine.remove(this);
@@ -1299,7 +1368,7 @@ var SLIDERS=[
   {id:'xfade',  label:'Transição entre tons', min:2, max:40, step:1, fmt:function(v){ return Math.round(v)+' s'; }},
   {id:'bright', label:'Brilho', min:0, max:1, step:0.01, fmt:function(v){ return Math.round(v*100); }},
   {id:'reverb', label:'Reverb', min:0, max:1, step:0.01, fmt:function(v){ return Math.round(v*100); }},
-  {id:'motion', label:'Movimento do brilho', min:0, max:1, step:0.01, fmt:function(v){ return v>0 ? Math.round(v*100) : 'parado'; }},
+  {id:'motion', label:'Ensemble (chorus)', min:0, max:1, step:0.01, fmt:function(v){ return v>0 ? Math.round(v*100) : 'desligado'; }},
   {id:'width',  label:'Largura estéreo', min:0, max:1, step:0.01, fmt:function(v){ return Math.round(v*100); }}
 ];
 function buildSliders(){
@@ -1792,6 +1861,7 @@ try{
     });
   }
 }catch(e){}
+window.atmosferaDebug = {state:state, engine:engine, PRESETS:PRESETS, ENS:ENS, SHAPES:SHAPES, TUNING:TUNING};   // só para testes automatizados
 })();
 </script>
 </body>
