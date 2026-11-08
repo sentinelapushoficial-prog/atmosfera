@@ -355,15 +355,17 @@ body.palco .song .mark{width:36px;height:36px;font-size:1rem}
         <details id="lookupSetup">
           <summary>Busca de tons na internet <span class="hint" id="lookupBadge"></span></summary>
           <div class="body">
-            <p class="hint">Uma página no celular não tem permissão para ler outros sites. Um serviço gratuito, na sua conta Google, faz isso pelo app: procura a música no Cifra Club e lê o tom de cada versão encontrada. Publique uma vez e cole o endereço aqui.</p>
+            <p class="hint">Uma página no celular não tem permissão para ler outros sites. Um serviço gratuito na Cloudflare faz isso pelo app: procura a música no Cifra Club e lê o tom de cada versão encontrada. O dono do app publica uma vez; depois todo mundo usa sem configurar nada.</p>
             <ol class="plain steps">
-              <li>No computador, abra <b>script.google.com</b> → <b>Novo projeto</b>. Apague o conteúdo, cole o código (botão abaixo) e salve.</li>
-              <li><b>Implantar → Nova implantação</b> → tipo <b>App da Web</b> · Executar como: <b>Eu</b> · Quem pode acessar: <b>Qualquer pessoa</b> → Implantar e autorizar.</li>
-              <li>Copie a URL que termina em <b>/exec</b>, cole abaixo, toque em <b>Salvar</b> e em <b>Testar</b>.</li>
+              <li>No computador, crie a conta gratuita em <b>dash.cloudflare.com</b>.</li>
+              <li><b>Workers &amp; Pages → Create → Create Worker</b> → nome <b>atmosfera-tons</b> → <b>Deploy</b>.</li>
+              <li><b>Edit code</b> → apague tudo, cole o código (botão abaixo) → <b>Deploy</b>.</li>
+              <li>Copie o endereço (termina em <b>workers.dev</b>), cole abaixo, toque em <b>Salvar</b> e em <b>Testar</b>.</li>
             </ol>
             <div class="io-tools">
-              <button class="btn small" id="btnCopyScript" type="button">Copiar código do serviço</button>
-              <a class="btn small ghost" href="atmosfera-tons.gs" download="atmosfera-tons.gs">Baixar o código</a>
+              <button class="btn small" id="btnCopyScript" type="button">Copiar código (Cloudflare)</button>
+              <a class="btn small ghost" href="atmosfera-tons-worker.js" download="atmosfera-tons-worker.js">Baixar</a>
+              <a class="btn small ghost" href="atmosfera-tons.gs" download="atmosfera-tons.gs">Versão para Google Apps Script</a>
             </div>
             <input type="url" id="lookupUrl" placeholder="https://script.google.com/macros/s/…/exec" aria-label="Endereço do serviço" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="url">
             <div class="io-tools">
@@ -640,7 +642,7 @@ var CATALOG_RAW = [
 ];
 
 /* ---------- Repertório inicial ---------- */
-var APP_VERSION = '1.4';
+var APP_VERSION = '1.5';
 var DEFAULT_SETLIST = [
   {id:'d1', t:'Galileu',                           a:'Fernandinho',    k:10, m:'menor'},
   {id:'d2', t:'Canção do Céu',                     a:'Mauro Henrique', k:6,  m:'maior'},
@@ -1433,14 +1435,14 @@ $('#btnLookupTest').addEventListener('click', function(){
   if(!lookupUrl()){ st.textContent='Cole o endereço do serviço e toque em Salvar antes de testar.'; return; }
   st.textContent='Testando… (a primeira resposta pode levar alguns segundos)';
   webRequest('galileu').then(function(res){
-    if(!res.length){ st.textContent='O serviço respondeu, mas não encontrou nenhuma versão de “galileu”. Abra o endereço com ?q=galileu&debug=1 no navegador e me mande o que aparecer.'; return; }
+    if(!res.length){ st.textContent='O serviço respondeu, mas não encontrou nenhuma versão de “galileu”. Abra no navegador o endereço com /?q=galileu&debug=1 no final e me mande o que aparecer.'; return; }
     st.textContent='Serviço funcionando: '+res.length+' versão(ões) de “galileu”. Ex.: '+res[0].t+' · '+res[0].a+' · '+keyLabel(res[0].k,res[0].m)+'.';
-  }).catch(function(err){ st.textContent='Falhou: '+(err && err.message || 'sem resposta')+'. Confira se a implantação está como “App da Web” com acesso “Qualquer pessoa” e se o endereço termina em /exec.'; });
+  }).catch(function(err){ st.textContent='Falhou: '+(err && err.message || 'sem resposta')+'. Confira se o Worker foi publicado (Deploy) e se o endereço está completo.'; });
 });
 $('#btnCopyScript').addEventListener('click', function(){
   var st=$('#lookupStatus'); st.textContent='Copiando…';
-  fetch('atmosfera-tons.gs', {cache:'no-store'}).then(function(r){ return r.text(); }).then(function(txt){
-    if(navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(txt).then(function(){ st.textContent='Código copiado. Cole no editor do script.google.com.'; });
+  fetch('atmosfera-tons-worker.js', {cache:'no-store'}).then(function(r){ return r.text(); }).then(function(txt){
+    if(navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(txt).then(function(){ st.textContent='Código copiado. Cole no editor do Worker na Cloudflare.'; });
     var ta=$('#ioText'); ta.value=txt; ta.select(); document.execCommand('copy'); st.textContent='Código copiado (via caixa de texto).';
   }).catch(function(){ st.textContent='Não deu para copiar aqui; use o botão Baixar o código.'; });
 });

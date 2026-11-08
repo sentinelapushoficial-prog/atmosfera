@@ -16,7 +16,9 @@ Funciona como app instalável (PWA): abre sem internet depois da primeira visita
 
 ## Busca de tons na internet
 
-O app não consegue ler outros sites sozinho. `atmosfera-tons.gs` é um serviço para o Google Apps Script
-(gratuito, na conta Google do usuário) que procura a música no Cifra Club e devolve as versões com o tom.
-Publique como App da Web (Executar como: eu · Acesso: qualquer pessoa) e cole a URL `/exec` em
-Repertório → "Busca de tons na internet". Diagnóstico: `URL?q=galileu&debug=1`.
+O app não consegue ler outros sites sozinho. `atmosfera-tons-worker.js` é um serviço para Cloudflare Workers
+(plano gratuito: 100 mil consultas/dia) que procura a música no Cifra Club e devolve as versões com o tom.
+Publique uma vez (Workers & Pages → Create Worker → Edit code → Deploy) e coloque o endereço em
+`DEFAULT_SETTINGS.lookupUrl` no `index.html` (ou cole em Repertório → "Busca de tons na internet").
+Origens autorizadas ficam em `ORIGENS` no Worker. Diagnóstico: `URL/?q=galileu&debug=1`.
+`atmosfera-tons.gs` é a mesma coisa para Google Apps Script, caso prefira.
