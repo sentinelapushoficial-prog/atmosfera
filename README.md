@@ -10,29 +10,21 @@ Funciona como app instalável (PWA): abre sem internet depois da primeira visita
 
 ## Som
 
-- Fades lineares em decibéis (de −50 dB até cheio): o crescimento soa parelho do começo ao fim. Troca de tom por
-  crossfade de potência constante.
-- Presets **Piano** (padrão) e **Cristal**: síntese aditiva — cada nota é um conjunto de parciais senoidais com a
-  envoltória espectral de um piano (queda 1/k^tilt e o pente da posição do martelo, ≈1/7,5 da corda), tônica uma
-  oitava acima (entre Sol3 e Fá♯4), baixo uma oitava abaixo, quinta/oitava/12ª/15ª, nona leve e terça nos modos
-  maior/menor. Afinação de afinador de piano (`partialFreq`/`below`): cada nota cai onde um parcial seu coincide
-  com um parcial da tônica — nada bate devagar. A inarmonicidade (`inharm`) existe no código mas fica em 0: com ela
-  os parciais vizinhos batem e o nível "respira" (medido 2–4 dB).
-- **Cordas**: dente de serra em ensemble, uma oitava acima. **Profundo**: pad escuro no registro grave.
-- Fase inicial por frequência (`startPhase`): parciais coincidentes somam sempre igual (timbre consistente), sem
-  onda pontuda.
-- Ensemble polifásico (`ENS`): seis linhas de atraso moduladas (LFO lento 0,9 Hz e rápido 6,2 Hz), fases a 60° —
-  gira sem o nível oscilar. Divisor Linkwitz-Riley (`ensSplit`): só graves e médios passam pelo ensemble; os
-  agudos seguem limpos (nos parciais agudos do piano o chorus virava tremor). O controle "Ensemble" regula a
-  profundidade. Ondulação medida ≤ 0,9 dB em todos os presets.
-- Shimmer: cópia uma oitava acima (deslocador granular, `makeShifter`) entra só no reverb.
-- Sem LFO de amplitude e sem desafinação dentro da nota. Limitador só de segurança (−1 dB); nível de trabalho
-  `BUS_GAIN`. Atenção: no Web Audio o `Q` dos passa-baixas/altas é em dB.
-- Segundo plano: enquanto o pad toca, um `<audio>` com 30 s de silêncio em loop toca junto, e a Media Session mostra
-  música e tom na notificação e na tela de bloqueio (Pausar, Próxima, Anterior). Se o sistema pausar a mídia ou
-  interromper o áudio, o app tenta voltar sozinho (até 8 vezes por minuto). Só para com Parar ou ao fechar o app.
+- Motor de som original (o mesmo da 1.0 à 1.5, de volta na 1.9 a pedido do autor): quatro presets — Quente, Cristal,
+  Cordas, Profundo — com duas dentes de serra desafinadas por nota, sub e agudos, filtro passa-baixas com LFO lento
+  ("Movimento interno"), chorus/ensemble estéreo com duas linhas de atraso moduladas, reverb por convolução
+  (resposta gerada, 6,5 s) e compressor/limitador (−6 dB, 12:1).
+- Fades lineares em decibéis (de −50 dB até cheio), novidade da 1.6 mantida: a entrada cresce parelha, sem começar
+  alta. Troca de tom por crossfade de potência constante.
+- Segundo plano (desde a 1.6): enquanto o pad toca, um `<audio>` com 30 s de silêncio em loop toca junto, e a Media
+  Session mostra música e tom na notificação e na tela de bloqueio (Pausar, Próxima, Anterior). Se o sistema pausar
+  a mídia ou interromper o áudio, o app tenta voltar sozinho (até 8 vezes por minuto). Só para com Parar ou ao
+  fechar o app.
+- Histórico: as versões 1.6–1.8 experimentaram motores sem oscilação de nível (ensemble polifásico, shimmer,
+  síntese aditiva de piano). O código está no histórico do git (commits "Atmosfera 1.6/1.7/1.8").
 - `tests/test_audio.py` renderiza o motor num OfflineAudioContext e mede fade, ondulação, picos e equilíbrio
-  espectral; `tests/test_shifter.py` confere o shimmer; `tests/test_bg.py` o comportamento de mídia/Media Session.
+  espectral (a ondulação é informativa: o motor original tem movimento por natureza); `tests/test_bg.py` confere
+  mídia/Media Session e as migrações de configurações.
 
 ## Publicar uma versão nova
 
