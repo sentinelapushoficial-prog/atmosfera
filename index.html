@@ -666,7 +666,7 @@ var CATALOG_RAW = [
 ];
 
 /* ---------- Repertório inicial ---------- */
-var APP_VERSION = '2.1';
+var APP_VERSION = '2.2';
 var DEFAULT_SETLIST = [
   {id:'d1', t:'Galileu',                           a:'Fernandinho',    k:10, m:'menor'},
   {id:'d2', t:'Canção do Céu',                     a:'Mauro Henrique', k:6,  m:'maior'},
@@ -792,70 +792,46 @@ function invert(f, y){ // bissecção numa função crescente em [0,1]
 function Engine(){
   this.ctx=null; this.voices=[]; this.all=[]; this.playing=false;
   this.transitionUntil=0; this.transitionTo=null; this.muted=false; this.tailUntil=0;
+  this.ready=false; this.pending=null; this.failed=false;
 }
+var WORKLET_URL = 'atmosfera-worklet.js';
 Engine.prototype.ensure = function(){
-  if(this.ctx) return true;
+  if(this.ctx) return !this.failed;
   var AC = window.AudioContext || window.webkitAudioContext;
   if(!AC) return false;
   try{ this.ctx = new AC({latencyHint:'playback'}); }catch(e){ this.ctx = new AC(); }
-  this.build();
   var self=this;
   this.ctx.onstatechange = function(){ onCtxState(self.ctx.state); };
+  if(!this.ctx.audioWorklet){ this.failed=true; showFatal('Este navegador não tem AudioWorklet. Use o Chrome atualizado.'); return false; }
+  this.ctx.audioWorklet.addModule(WORKLET_URL).then(function(){
+    self.ready=true; self.build();
+    if(self.pending){ var p=self.pending; self.pending=null; self.goTo(p.pc, p.mode, p.opts); render(); kick(); }
+  }).catch(function(err){ self.failed=true; showFatal('Não consegui carregar o motor de áudio ('+(err && err.message ? err.message : err)+'). Recarregue a página.'); });
   return true;
 };
 Engine.prototype.resume = function(){
   if(!this.ctx) return;
   if(this.ctx.state!=='running'){ try{ var p=this.ctx.resume(); if(p && p.catch) p.catch(function(){}); }catch(e){} }
 };
-/* Cadeia: vozes → bus → chorus → [shimmer] → reverb → compressor de cola → volume → limitador de segurança → medidor → saída.
-   Chorus no estilo Juno: duas linhas de atraso moduladas a ~0,5 Hz com pouca profundidade — varre rápido e raso,
-   sem o balanço lento de nível que um chorus de 0,1 Hz produz. */
+/* Cadeia: vozes (worklet) → bus → efeitos (worklet: chorus → shimmer → reverb FDN) → nivelador → volume →
+   limitador de segurança → corte −3 dB → medidor → saída. Tudo que é pesado roda nos dois processadores do
+   atmosfera-worklet.js; aqui ficam só os ganhos de fade e a dinâmica. */
 var BUS_GAIN = 0.7;
 var CHORUS = {rateL:0.5, rateR:0.71, depthL:0.0008, depthR:0.001, baseL:0.0145, baseR:0.0212};
 var GLUE = {threshold:-12, knee:10, ratio:3, attack:0.02, release:0.3, makeup:1.0};
 var SHIMMER_FB = 0.4;
+var FDN = {N:16, minLen:0.05, maxLen:0.3, rt60:10.5, damp:3800, floor:60, inGain:0.5, outGain:0.53};
 Engine.prototype.build = function(){
-  var c=this.ctx, t0=c.currentTime+0.05;
+  var c=this.ctx, S=state.settings, P=PRESETS[S.preset];
   this.bus = c.createGain(); this.bus.gain.value=BUS_GAIN;
-
-  // Chorus / ensemble: seco + duas linhas de atraso moduladas, abertas em estéreo
-  this.chDry = c.createGain(); this.chWet = c.createGain();
-  this.dL = c.createDelay(0.1); this.dR = c.createDelay(0.1);
-  this.dL.delayTime.value=CHORUS.baseL; this.dR.delayTime.value=CHORUS.baseR;
-  this.lfoL = c.createOscillator(); this.lfoL.frequency.value=CHORUS.rateL; this.lfoLg=c.createGain(); this.lfoLg.gain.value=CHORUS.depthL;
-  this.lfoR = c.createOscillator(); this.lfoR.frequency.value=CHORUS.rateR; this.lfoRg=c.createGain(); this.lfoRg.gain.value=CHORUS.depthR;
-  this.lfoL.connect(this.lfoLg); this.lfoLg.connect(this.dL.delayTime);
-  this.lfoR.connect(this.lfoRg); this.lfoRg.connect(this.dR.delayTime);
-  this.panL = c.createStereoPanner ? c.createStereoPanner() : c.createGain();
-  this.panR = c.createStereoPanner ? c.createStereoPanner() : c.createGain();
-  this.bus.connect(this.chDry);
-  this.bus.connect(this.dL); this.dL.connect(this.panL); this.panL.connect(this.chWet);
-  this.bus.connect(this.dR); this.dR.connect(this.panR); this.panR.connect(this.chWet);
-  this.fx = c.createGain(); this.chDry.connect(this.fx); this.chWet.connect(this.fx);
-
-  // Shimmer: uma cópia uma oitava acima entra só no reverb, e parte da cauda do reverb volta ao deslocador —
-  // a cada volta sobe mais uma oitava e some um pouco: a cascata de "ar" dos pads de louvor
-  this.shifter = makeShifter(c, 2, t0);
-  this.shimG = c.createGain(); this.shimG.gain.value=0;
-  this.shimFb = c.createGain(); this.shimFb.gain.value=0;
-  this.shimHp = c.createBiquadFilter(); this.shimHp.type='highpass'; this.shimHp.frequency.value=150; this.shimHp.Q.value=-3;   // o shimmer não carrega grave (e nada de DC no laço)
-  this.fx.connect(this.shimHp); this.shimHp.connect(this.shifter.input); this.shifter.output.connect(this.shimG);
-
-  // Reverb: rede de atrasos realimentada (FDN), toda na thread de áudio — leve o bastante para não falhar com o
-  // Chrome em segundo plano (a convolução de 8 s usava uma thread de fundo que o Android estrangula)
-  this.rvDry = c.createGain(); this.rvWet = c.createGain();
-  this.pre = c.createDelay(0.2); this.pre.delayTime.value=0.04;
-  this.fdn = makeFDN(c);
-  this.fx.connect(this.rvDry);
-  this.fx.connect(this.pre); this.shimG.connect(this.pre); this.pre.connect(this.fdn.input); this.fdn.output.connect(this.rvWet);
-  this.fdn.output.connect(this.shimFb); this.shimFb.connect(this.shimHp);          // realimentação do shimmer (há DelayNodes no laço)
-
-  // Nivelador (como a masterização dos pads prontos: achata o tremor dos batimentos e os balanços lentos de nível,
-  // deixando o movimento no timbre), ganho de compensação, volume, limitador de segurança, medidor
+  this.fx = new AudioWorkletNode(c, 'atmosfera-fx', {numberOfInputs:1, numberOfOutputs:1, outputChannelCount:[2],
+    processorOptions:{chorus:CHORUS, fdn:FDN, width:S.width, reverb:S.reverb, shimmer:P.shimmer, shimFbBase:SHIMMER_FB}});
+  this.bus.connect(this.fx);
+  // Nivelador (como a masterização dos pads prontos), ganho de compensação, volume, limitador de segurança, medidor
   this.glue = c.createDynamicsCompressor();
   this.glue.threshold.value=GLUE.threshold; this.glue.knee.value=GLUE.knee; this.glue.ratio.value=GLUE.ratio;
   this.glue.attack.value=GLUE.attack; this.glue.release.value=GLUE.release;
-  this.rvDry.connect(this.glue); this.rvWet.connect(this.glue);
+  this.fx.connect(this.glue);
   this.makeup = c.createGain(); this.makeup.gain.value=GLUE.makeup;
   this.glue.connect(this.makeup);
   this.master = c.createGain(); this.master.gain.value=0.001;
@@ -870,91 +846,33 @@ Engine.prototype.build = function(){
   this.limiter.connect(this.trim);
   this.analyser = c.createAnalyser(); this.analyser.fftSize=1024; this.analyser.smoothingTimeConstant=0.6;
   this.trim.connect(this.analyser); this.analyser.connect(c.destination);
-  this.lfoL.start(); this.lfoR.start();
   this.applySettings();
 };
-/* Deslocador de altura granular: duas linhas de atraso cujo tempo cai em rampa — o som é lido mais rápido do que
-   entra, subindo de altura — e janelas em cosseno que se revezam, zerando exatamente na hora do salto da rampa.
-   Rampa e janela são buffers em loop (amostra a amostra). ratio 2 = uma oitava acima. O tremor dos grãos (8 Hz)
-   some dentro do reverb. */
-function makeShifter(c, ratio, t0){
-  var F=8, T=1/F, N=Math.round(c.sampleRate*T), input=c.createGain(), output=c.createGain();
-  var G=-(ratio-1)*T/2;                 // a rampa vai de −1 a 1 em T → d(atraso)/dt = 2G/T = −(ratio−1)
-  var D0=Math.abs(G)+0.004;             // atraso base: a rampa nunca chega a zero
-  var ramp=c.createBuffer(1,N,c.sampleRate), win=c.createBuffer(1,N,c.sampleRate), rd=ramp.getChannelData(0), wd=win.getChannelData(0);
-  for(var i=0;i<N;i++){ rd[i]=-1+2*i/N; wd[i]=0.5-0.5*Math.cos(2*Math.PI*i/N); }   // a janela é zero onde a rampa salta
-  function loopSrc(buf, when){ var s=c.createBufferSource(); s.buffer=buf; s.loop=true; s.start(when); return s; }
-  for(var k=0;k<2;k++){
-    var when=t0 + k*T/2;
-    var d=c.createDelay(0.5); d.delayTime.value=D0;
-    var rg=c.createGain(); rg.gain.value=G; loopSrc(ramp, when).connect(rg); rg.connect(d.delayTime);
-    var w=c.createGain(); w.gain.value=0; loopSrc(win, when).connect(w.gain);
-    input.connect(d); d.connect(w); w.connect(output);
-  }
-  return {input:input, output:output};
-}
-/* Reverb FDN: 16 linhas de atraso (50–300 ms, em progressão geométrica, comprimentos co-primos), realimentadas
-   pela matriz de Householder (I − 2/N·11ᵀ: conserva energia e mistura tudo com tudo), amortecimento por passa-baixas
-   em cada linha (a cauda escurece como numa sala) e ganho por linha que fixa o RT60. Entrada: canal esquerdo nas
-   linhas pares, direito nas ímpares; saída: somas com sinais e pesos diferentes para L e R (descorrelacionadas).
-   Sem modulação das linhas: a resposta é fixa, e o nível de um pad sustentado não balança. */
-var FDN = {N:16, minLen:0.05, maxLen:0.3, rt60:10.5, damp:3800, floor:60, inGain:0.5, outGain:0.53};
-function makeFDN(c){
-  var N=FDN.N, sr=c.sampleRate, input=c.createGain(), merge=c.createChannelMerger(2);
-  input.gain.value=FDN.inGain;
-  var split=c.createChannelSplitter(2); input.connect(split);
-  var outL=c.createGain(), outR=c.createGain(); outL.connect(merge,0,0); outR.connect(merge,0,1);
-  var S=c.createGain(); var M=c.createGain(); M.gain.value=-2/N; S.connect(M);
-  for(var i=0;i<N;i++){
-    var len=Math.round(FDN.minLen*Math.pow(FDN.maxLen/FDN.minLen, i/(N-1))*sr*(1+0.013*Math.sin(i*7.3)))/sr;
-    var d=c.createDelay(0.5); d.delayTime.value=len;
-    var lp=c.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=FDN.damp; lp.Q.value=-6;
-    var hp=c.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=FDN.floor; hp.Q.value=-3;   // sem isto, padrões de DC/subgrave ficam presos no laço (autovalor +1 da matriz) e crescem
-    var g=c.createGain(); g.gain.value=Math.pow(10, -3*len/FDN.rt60);
-    d.connect(lp); lp.connect(hp); hp.connect(g);
-    g.connect(d); g.connect(S); M.connect(d);              // entrada da linha i: x_i + g_i·y_i − (2/N)·Σ g_j·y_j
-    split.connect(d, i%2);
-    var tl=c.createGain(); tl.gain.value=(i%2?-1:1)*FDN.outGain*(0.55+0.45*Math.abs(Math.sin(i*2.1+0.7))); d.connect(tl); tl.connect(outL);
-    var tr=c.createGain(); tr.gain.value=((i>>1)%2?-1:1)*FDN.outGain*(0.55+0.45*Math.abs(Math.cos(i*1.7+0.3))); d.connect(tr); tr.connect(outR);
-  }
-  return {input:input, output:merge};
-}
 Engine.prototype.cutoffFor = function(P,S){
   return clamp(P.cutoff*Math.pow(2,(S.bright-0.5)*2.2), 180, 9000);
 };
 Engine.prototype.applySettings = function(){
-  if(!this.ctx) return;
+  if(!this.ctx || !this.ready) return;
   var c=this.ctx, now=c.currentTime, S=state.settings, P=PRESETS[S.preset];
   var vol = S.volume*S.volume;
   if(!this.muted) this.master.gain.setTargetAtTime(Math.max(0.0001,vol), now, 0.05);
-  var wet = S.width*0.9;
-  this.chWet.gain.setTargetAtTime(wet, now, 0.05);
-  this.chDry.gain.setTargetAtTime(1-0.35*S.width, now, 0.05);
-  if(this.panL.pan){ this.panL.pan.setTargetAtTime(-(0.25+0.75*S.width), now, 0.05); this.panR.pan.setTargetAtTime((0.25+0.75*S.width), now, 0.05); }
-  var r=S.reverb;
-  this.rvDry.gain.setTargetAtTime(1-0.55*r, now, 0.05);
-  this.rvWet.gain.setTargetAtTime(1.15*r, now, 0.05);
-  var shimG = P.shimmer*(0.8+r);
-  this.shimG.gain.setTargetAtTime(shimG, now, 0.05);
-  this.shimFb.gain.setTargetAtTime(P.shimmer>0 ? SHIMMER_FB*(0.6+0.4*r)/Math.max(1,shimG) : 0, now, 0.05);   // ganho do laço ≤ 0,45: sempre decai
+  this.fx.port.postMessage({type:'set', width:S.width, reverb:S.reverb, shimmer:P.shimmer, shimFbBase:SHIMMER_FB});
   var cutoff=this.cutoffFor(P,S);
   for(var i=0;i<this.all.length;i++){
-    var v=this.all[i];
-    v.f1.frequency.setTargetAtTime(cutoff, now, 0.1); v.f2.frequency.setTargetAtTime(cutoff, now, 0.1);
-    v.fLfoG.gain.setTargetAtTime(P.lfoDepth*MOTION.filter*S.motion, now, 0.1);
-    for(var j=0;j<v.ampLfos.length;j++) v.ampLfos[j].g.gain.setTargetAtTime(v.ampLfos[j].base*MOTION.amp*S.motion, now, 0.1);
-    for(var k=0;k<v.pans.length;k++) v.pans[k].node.pan.setTargetAtTime(v.pans[k].side*S.width, now, 0.1);
+    this.all[i].node.port.postMessage({type:'set', cutoff:cutoff, fLfoDepth:P.lfoDepth*MOTION.filter*S.motion, ampDepth:MOTION.amp*S.motion, width:S.width});
   }
 };
 Engine.prototype.unmute = function(){
-  if(!this.muted) return;
+  if(!this.muted || !this.ready) return;
   this.muted=false;
   var S=state.settings; this.master.gain.setTargetAtTime(Math.max(0.0001,S.volume*S.volume), this.ctx.currentTime, 0.08);
 };
 Engine.prototype.goTo = function(pc, mode, opts){
   opts=opts||{};
   if(!this.ensure()) return false;
-  this.resume(); this.unmute();
+  this.resume();
+  if(!this.ready){ this.pending={pc:pc, mode:mode, opts:opts}; return true; }   // o motor ainda está carregando: toca assim que ficar pronto
+  this.unmute();
   var S=state.settings, P=PRESETS[S.preset];
   var wasPlaying = this.voices.length>0;
   var dur = opts.dur!=null ? opts.dur : (wasPlaying ? S.xfade : S.fadeIn);
@@ -968,6 +886,7 @@ Engine.prototype.goTo = function(pc, mode, opts){
 };
 Engine.prototype.stop = function(){
   if(!this.ctx) return;
+  this.pending=null;
   var dur=state.settings.fadeIn;
   for(var i=0;i<this.voices.length;i++){ this.voices[i].fadeTo(0,dur,'out'); this.voices[i].disposeAfter(); }
   this.voices=[]; this.playing=false;
@@ -975,6 +894,8 @@ Engine.prototype.stop = function(){
 };
 Engine.prototype.hardStop = function(){
   if(!this.ctx) return;
+  this.pending=null;
+  if(!this.ready) return;
   var now=this.ctx.currentTime;
   for(var i=0;i<this.all.length;i++){ this.all[i].fadeTo(0,0.06,'out'); this.all[i].disposeAfter(); }
   this.voices=[]; this.playing=false; this.transitionUntil=0; this.transitionTo=null;
@@ -984,7 +905,7 @@ Engine.prototype.hardStop = function(){
   this.tailUntil=now+1;
 };
 Engine.prototype.remove = function(v){ var i=this.all.indexOf(v); if(i>=0) this.all.splice(i,1); if(!this.muted) this.tailUntil=this.ctx.currentTime+7; };
-Engine.prototype.active = function(){ return this.all.length>0 || (!!this.ctx && this.ctx.currentTime < (this.tailUntil||0)); };
+Engine.prototype.active = function(){ return this.all.length>0 || !!this.pending || (!!this.ctx && this.ctx.currentTime < (this.tailUntil||0)); };
 Engine.prototype.level = function(){
   if(!this.analyser) return -Infinity;
   var n=this.analyser.fftSize, sum=0, i;
@@ -1001,47 +922,30 @@ Engine.prototype.level = function(){
   return rms>0 ? 20*Math.log10(rms) : -Infinity;
 };
 
-/* Uma voz = um acorde de pad num tom. Entra e sai só por fade.
+/* Uma voz = um acorde de pad num tom. Entra e sai só por fade (o ganho `out` é nativo; a síntese fica no worklet).
    O corpo de cada nota é um uníssono de cinco dentes de serra (UNISON) espalhadas no estéreo; sub e agudos são
    vozes únicas. Filtro passa-baixas em dois estágios (24 dB/oit) com LFO lento no brilho e LFO lento de amplitude
-   por nota — o "Movimento interno" regula os dois. Cada oscilador começa numa fase aleatória. */
+   por nota — o "Movimento interno" regula os dois. */
+var WAVE_ID = {sawtooth:0, triangle:1, sine:2};
 function Voice(engine, pc, mode, P, S){
   var c=engine.ctx; this.c=c; this.engine=engine; this.pc=pc; this.mode=mode; this.hue=hueOf(pc); this.seed=Math.random()*6.28;
-  this.out=c.createGain(); this.out.gain.value=0;
-  var cutoff=engine.cutoffFor(P,S);
-  this.f1=c.createBiquadFilter(); this.f1.type='lowpass'; this.f1.Q.value=P.q; this.f1.frequency.value=cutoff;
-  this.f2=c.createBiquadFilter(); this.f2.type='lowpass'; this.f2.Q.value=P.q; this.f2.frequency.value=cutoff;
-  this.f1.connect(this.f2); this.f2.connect(this.out); this.out.connect(engine.bus);
-  this.fLfo=c.createOscillator(); this.fLfo.frequency.value=0.05+Math.random()*0.05;
-  this.fLfoG=c.createGain(); this.fLfoG.gain.value=P.lfoDepth*MOTION.filter*S.motion;
-  this.fLfo.connect(this.fLfoG); this.fLfoG.connect(this.f1.detune); this.fLfoG.connect(this.f2.detune);
-  this.oscs=[]; this.lfos=[this.fLfo]; this.ampLfos=[]; this.pans=[];
-  if(P.vib){ this.vib=c.createOscillator(); this.vib.frequency.value=P.vib; this.vibG=c.createGain(); this.vibG.gain.value=5; this.vib.connect(this.vibG); this.lfos.push(this.vib); }
-  var notes=this.voicing(pc,mode,P), self=this, canPan=!!c.createStereoPanner;
-  function osc(type, freq, detuneCents, gain, pan, dest){
-    var o=c.createOscillator(); o.type=type; o.frequency.value=freq; o.detune.value=detuneCents;
-    var og=c.createGain(); og.gain.value=gain; o.connect(og);
-    if(canPan && pan!==0){ var pn=c.createStereoPanner(); pn.pan.value=pan*S.width; og.connect(pn); pn.connect(dest); self.pans.push({node:pn, side:pan}); }
-    else og.connect(dest);
-    if(self.vibG) self.vibG.connect(o.detune);
-    self.oscs.push(o);
-  }
+  this.out=c.createGain(); this.out.gain.value=0; this.out.connect(engine.bus);
+  var notes=this.voicing(pc,mode,P), spec=[];
   for(var i=0;i<notes.length;i++){
-    var n=notes[i], base=n.level*0.2, f=mtof(n.midi), ds=P.detune*(n.detuneScale||1);
-    var ng=c.createGain(); ng.gain.value=base; ng.connect(this.f1);
-    var al=c.createOscillator(); al.frequency.value=0.04+Math.random()*0.12;
-    var alg=c.createGain(); alg.gain.value=base*MOTION.amp*S.motion; al.connect(alg); alg.connect(ng.gain);
-    this.lfos.push(al); this.ampLfos.push({o:al,g:alg,base:base});
+    var n=notes[i], f=mtof(n.midi), ds=P.detune*(n.detuneScale||1), oscs=[];
     var set=n.oscs||P.oscs;
     for(var j=0;j<set.length;j++){
       var sp=set[j];
-      if(sp[1]==='u'){ for(var u=0;u<UNISON.length;u++) osc(sp[0], f, UNISON[u].d*ds+(Math.random()-0.5), sp[2]*UNISON[u].g, UNISON[u].p, ng); }
-      else osc(sp[0], f, sp[1]*ds+(Math.random()-0.5)*2, sp[2], 0, ng);
+      if(sp[1]==='u'){ for(var u=0;u<UNISON.length;u++) oscs.push({type:WAVE_ID[sp[0]], freq:f, cents:UNISON[u].d*ds+(Math.random()-0.5), gain:sp[2]*UNISON[u].g, pan:UNISON[u].p}); }
+      else oscs.push({type:WAVE_ID[sp[0]], freq:f, cents:sp[1]*ds+(Math.random()-0.5)*2, gain:sp[2], pan:0});
     }
+    spec.push({gain:n.level*0.2, lfoRate:0.04+Math.random()*0.12, oscs:oscs});
   }
+  this.node = new AudioWorkletNode(c, 'atmosfera-voice', {numberOfInputs:0, numberOfOutputs:1, outputChannelCount:[2],
+    processorOptions:{notes:spec, cutoff:engine.cutoffFor(P,S), q:P.q, fLfoRate:0.05+Math.random()*0.05, fLfoDepth:P.lfoDepth*MOTION.filter*S.motion,
+      ampDepth:MOTION.amp*S.motion, vibRate:P.vib||0, vibDepth:P.vib?5:0, width:S.width}});
+  this.node.connect(this.out);
   var t=c.currentTime;
-  for(var k=0;k<this.oscs.length;k++) this.oscs[k].start(t+Math.random()*0.02);
-  for(var l=0;l<this.lfos.length;l++) this.lfos[l].start(t);
   this.curve=new Float32Array([0,0]); this.t0=t; this.dur=0.001; this.fadeEnd=t;
   this.disposed=false;
 }
@@ -1100,11 +1004,9 @@ Voice.prototype.disposeAfter = function(){
 };
 Voice.prototype.dispose = function(){
   if(this.disposed) return; this.disposed=true;
-  var t=this.c.currentTime, i;
-  for(i=0;i<this.oscs.length;i++){ try{ this.oscs[i].stop(t); }catch(e){} }
-  for(i=0;i<this.lfos.length;i++){ try{ this.lfos[i].stop(t); }catch(e){} }
+  try{ this.node.port.postMessage({type:'stop', after:0.15}); }catch(e){}
   var self=this;
-  setTimeout(function(){ try{ self.out.disconnect(); }catch(e){} }, 100);
+  setTimeout(function(){ try{ self.node.disconnect(); self.out.disconnect(); }catch(e){} }, 300);
   this.engine.remove(this);
 };
 
@@ -1221,6 +1123,7 @@ document.addEventListener('visibilitychange', function(){
   if(document.visibilityState==='visible'){ if(engine.playing) keepAwake(); guardNow(); }
 });
 
+function showFatal(msg){ var w=$('#ctxWarn'); w.textContent=msg; w.classList.add('show'); }
 function showCtxWarn(on){ var w=$('#ctxWarn'); if(on) w.classList.add('show'); else w.classList.remove('show'); }
 function onCtxState(s){
   if(s==='running'){ showCtxWarn(false); return; }

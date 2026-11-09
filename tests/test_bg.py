@@ -129,10 +129,10 @@ async def main():
             if mot3 != "40": fails.append(f"preferência de movimento perdida ({mot3})")
 
             ver = await pg.inner_text("#version"); print(ver)
-            if "2.1" not in ver: fails.append("versão no rodapé")
+            if "2.2" not in ver: fails.append("versão no rodapé")
             if errors: fails.append(f"erros JS: {errors}")
             await pg.set_viewport_size({"width": 390, "height": 844})
-            await pg.screenshot(path=f"{ROOT}/shot_mobile_v21.png", full_page=False)
+            await pg.screenshot(path=f"{ROOT}/shot_mobile_v22.png", full_page=False)
             await b.close()
     finally:
         srv.terminate()

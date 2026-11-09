@@ -6,9 +6,20 @@ Funciona como app instalável (PWA): abre sem internet depois da primeira visita
 
 - `index.html` — o app inteiro (áudio, interface, repertório)
 - `manifest.webmanifest` e `icon-*.png` — instalação na tela inicial
+- `atmosfera-worklet.js` — o motor de áudio (AudioWorklet): um processador por voz (acorde) e um de efeitos
 - `sw.js` — cache para uso sem internet
 
 ## Som
+
+- **Motor em AudioWorklet (2.2).** Antes, cada acorde era um grafo de ~140 nós do Web Audio (35 osciladores,
+  ganhos, panners, filtros, LFOs) mais ~110 nós de efeitos; em segundo plano no Android, a thread de áudio do
+  Chrome não dava conta e o som picotava (gravação do autor: buracos de 20 ms e um de 1 s ao abrir outro app).
+  Agora `atmosfera-worklet.js` faz tudo em dois processadores escritos à mão (`atmosfera-voice`: uníssono de
+  dentes de serra PolyBLEP, sub/agudos, LFOs, filtro 24 dB/oit; `atmosfera-fx`: chorus, shimmer, reverb FDN,
+  mistura). Medido em renderização offline: ~3× mais barato que o grafo nativo (4% contra 13% de um núcleo de
+  desktop no pior caso, com duas vozes em crossfade). No `index.html` ficam só os ganhos de fade, o nivelador,
+  o volume, o limitador e o medidor. O módulo é carregado no primeiro toque; se o toque vier antes de ele estar
+  pronto, o pedido fica pendente e toca assim que carrega.
 
 - Base: o motor original (1.0–1.5), evoluído na 2.0 na direção dos "warm pads" de louvor (os pads de Omnisphere
   usados por Hillsong/Elevation e canais como Worship the One):

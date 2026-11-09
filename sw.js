@@ -1,8 +1,9 @@
 /* Atmosfera: cache do app para abrir sem internet.
    Estratégia: responde pelo cache na hora e atualiza em segundo plano.
    A cada publicação, mude o número de CACHE: é isso que faz o aparelho baixar a versão nova e mostrar o aviso "Atualizar". */
-var CACHE = 'atmosfera-v14';
-var ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './atmosfera-tons.gs', './atmosfera-tons-worker.js'];
+var CACHE = 'atmosfera-v15';
+var ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './atmosfera-tons.gs', './atmosfera-tons-worker.js',
+  './atmosfera-worklet.js'];
 
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) {
