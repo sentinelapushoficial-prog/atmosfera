@@ -666,7 +666,7 @@ var CATALOG_RAW = [
 ];
 
 /* ---------- Repertório inicial ---------- */
-var APP_VERSION = '2.2.1';
+var APP_VERSION = '2.3';
 var DEFAULT_SETLIST = [
   {id:'d1', t:'Galileu',                           a:'Fernandinho',    k:10, m:'menor'},
   {id:'d2', t:'Canção do Céu',                     a:'Mauro Henrique', k:6,  m:'maior'},
@@ -1445,7 +1445,8 @@ function saveWebCache(){
     localStorage.setItem(WEB_STORE, JSON.stringify(webCache));
   }catch(e){}
 }
-function lookupUrl(){ var u=String(state.settings.lookupUrl||'').trim(); return /^https:\/\//.test(u) ? u : ''; }
+var LOOKUP_DEFAULT='https://atmosfera-pad.ffdasilva1990.workers.dev/';
+function lookupUrl(){ var u=String(state.settings.lookupUrl||'').trim(); if(u==='off') return ''; if(!u) u=LOOKUP_DEFAULT; return /^https:\/\//.test(u) ? u : ''; }
 function webRequest(qq){
   var u=lookupUrl();
   return fetch(u+(u.indexOf('?')>=0?'&':'?')+'q='+encodeURIComponent(qq), {mode:'cors', cache:'no-store'})
@@ -1509,13 +1510,13 @@ function webRow(r){
 }
 function renderLookupSetup(){
   var u=lookupUrl();
-  $('#lookupUrl').value=String(state.settings.lookupUrl||'');
+  $('#lookupUrl').value = state.settings.lookupUrl==='off' ? '' : (state.settings.lookupUrl||LOOKUP_DEFAULT);
   $('#lookupBadge').textContent = u ? '· ligada' : '· desligada';
 }
 $('#btnLookupSave').addEventListener('click', function(){
   var u=$('#lookupUrl').value.trim();
   if(u && !/^https:\/\//.test(u)){ $('#lookupStatus').textContent='O endereço precisa começar com https://'; return; }
-  state.settings.lookupUrl=u; save(); webCache={}; saveWebCache(); renderLookupSetup();
+  state.settings.lookupUrl = u===LOOKUP_DEFAULT ? '' : (u||'off'); save(); webCache={}; saveWebCache(); renderLookupSetup();
   $('#lookupStatus').textContent = u ? 'Salvo. Toque em Testar para conferir.' : 'Busca na internet desligada.';
   webState={q:'',status:'',results:null}; renderLibrary();
 });
