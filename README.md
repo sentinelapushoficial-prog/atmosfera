@@ -59,21 +59,48 @@ Funciona como app instalável (PWA): abre sem internet depois da primeira visita
 2. Em `sw.js`, mude o número de `CACHE` (`atmosfera-v4` → `atmosfera-v5`…). É essa mudança que faz o celular baixar a versão nova e mostrar o aviso "Atualizar agora" dentro do app.
 3. Faça o push para `main`: o GitHub Pages publica sozinho.
 
-## Repertório e busca (2.4)
+## Repertório e busca (2.5)
 
-- **Catálogo embutido** em `CATALOG_RAW` (`index.html`): `Título|Artista|Tom|trechos da letra separados por ;`.
-  O tom é o da gravação original (fichas "Original Master" do MultiTracks.com e cifras publicadas); os trechos são
-  frases curtas, só para a busca encontrar a música pela letra. Para acrescentar uma música, basta uma linha nova.
-- **Busca** (`searchCatalog`/`matchText`): entende nome, artista ou pedaço da letra; ignora acento, maiúsculas e
-  pontuação; aceita começo de palavra (autocompletar), ordem trocada e erro de digitação (distância de edição 1,
-  ou 2 em palavras longas). Palavras muito comuns (de, que, eu…) não são exigidas. Frase inteira dentro do nome
-  vale mais que dentro da letra, que vale mais que no artista. O repertório do usuário é filtrado pelo mesmo motor,
-  usando os trechos do catálogo quando a música veio de lá.
-- **Nada encontrado:** o app mostra links para a busca do Cifra Club e do Letras (abrem no navegador) e o botão
-  "Cadastrar à mão". Não há leitura automática de sites: o Cifra Club responde 403 a servidores (bloqueio
-  deliberado de leitura automatizada), então a versão 2.3 (serviço em Cloudflare Workers / Apps Script que lia as
-  cifras) foi removida. Respeitar isso é condição para um app que vai à loja.
-- **Compartilhar → Atmosfera PAD** (`share_target` no manifesto; `handleShareTarget` no `index.html`): na página
-  da cifra, o compartilhamento do Android abre o app com nome e artista preenchidos (`parseShared` entende os
-  títulos do Cifra Club, Letras e YouTube, com botão para trocar nome ⇄ artista); se a música está no catálogo,
-  o tom já vem sugerido. Funciona com o app instalado na tela inicial.
+Três camadas, nesta ordem:
+
+1. **Catálogo embutido** em `CATALOG_RAW` (`index.html`): `Título|Artista|Tom|trechos da letra separados por ;`.
+   Tom da gravação original (fichas "Original Master" do MultiTracks.com e cifras publicadas); os trechos são
+   frases curtas só para a busca achar a música pela letra. Responde na hora, sem internet.
+2. **IA do Google (modo rápido).** O que não está no catálogo vai para o serviço `atmosfera-pad-worker.js`
+   (Cloudflare Worker), que pergunta ao Gemini pela API oficial. A IA identifica a música pelo nome, artista ou
+   trecho da letra e lista versões com o tom e um grau de confiança (`alta/media/baixa`). O app marca "IA · não
+   conferido" e põe `?` quando o tom é incerto. Esse resultado pode ser guardado (KV no Worker, 30 dias;
+   `localStorage` no aparelho, 7 dias).
+3. **Conferir no Google.** A IA pesquisa as cifras na hora (Grounding with Google Search) e devolve o tom com o
+   site de origem. Dispara sozinho quando a IA não deu nenhum tom com confiança alta, ou no botão. Pelos termos
+   do Google, esse resultado (a) é mostrado só a quem perguntou, (b) não é guardado em cache — nem no Worker nem
+   no `localStorage`; só na memória da sessão — e (c) vem acompanhado das **Sugestões de pesquisa do Google**
+   (`searchEntryPoint.renderedContent`), que o app exibe num `iframe` logo abaixo da lista.
+
+A busca local (`searchCatalog`/`matchText`) ignora acento, maiúsculas e pontuação; aceita começo de palavra,
+ordem trocada e erro de digitação. O repertório do usuário é filtrado pelo mesmo motor. **Compartilhar →
+Atmosfera PAD** (`share_target` no manifesto) abre o app com nome e artista preenchidos a partir da página da
+cifra. Ler o Cifra Club direto pelo servidor não funciona: o site responde 403 a leitura automática (versão 2.3,
+removida).
+
+### Publicar o serviço (uma vez)
+
+1. Cloudflare → Workers & Pages → worker `atmosfera-pad` → **Edit code** → colar `atmosfera-pad-worker.js` → **Deploy**.
+2. Chave da IA: [aistudio.google.com](https://aistudio.google.com) → **Get API key** → **Create API key**.
+   No worker: **Settings → Variables and Secrets → Add** → tipo *Secret* → nome `GEMINI_KEY` → colar → **Deploy**.
+3. Opcional, recomendado: **Storage & Databases → KV → Create** (`atmosfera-tons`) e, no worker, **Settings →
+   Bindings → Add → KV namespace**, variável `TONS`. É o cache compartilhado do modo rápido.
+4. Variáveis opcionais: `MODELOS` e `MODELOS_BUSCA` (listas separadas por vírgula; padrão
+   `gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-2.5-flash-lite` e
+   `gemini-3.5-flash-lite,gemini-2.5-flash-lite,gemini-2.5-flash`), `MODO=conferir` (toda busca já pesquisa no Google).
+5. Teste: `https://atmosfera-pad.ffdasilva1990.workers.dev/?q=galileu&debug=1` (mostra modelo, tentativas e a
+   resposta crua da IA). O endereço do serviço fica em `LOOKUP_DEFAULT` no `index.html`.
+
+Plano gratuito do Gemini: modo rápido com Flash-Lite 3.x (centenas de pedidos/dia); a pesquisa Google só existe no
+2.5 Flash-Lite (até 500/dia, partilhados). Com faturamento ativado no AI Studio (Tier 1): 5.000 pesquisas/mês
+grátis nos modelos 3.x, depois US$ 14 por 1.000; tokens custam frações de centavo por busca. O Worker tenta os
+modelos em ordem e passa ao seguinte quando um recusa (limite diário, indisponível no plano). Limites por IP:
+20 buscas rápidas e 6 conferências por minuto. Só o texto digitado sai do aparelho.
+
+Testes: `node tests/test_worker.mjs` (Worker com Google simulado), `python3 tests/test_web.py` (fluxo no app com o
+serviço simulado), `python3 tests/test_search.py` (busca local e compartilhamento).
