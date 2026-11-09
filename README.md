@@ -8,6 +8,7 @@ Funciona como app instalável (PWA): abre sem internet depois da primeira visita
 - `manifest.webmanifest` e `icon-*.png` — instalação na tela inicial
 - `atmosfera-worklet.js` — o motor de áudio (AudioWorklet): um processador por voz (acorde) e um de efeitos
 - `sw.js` — cache para uso sem internet
+- `tests/` — testes com Playwright (`test_search.py` cobre a busca e o compartilhamento)
 
 ## Som
 
@@ -58,11 +59,21 @@ Funciona como app instalável (PWA): abre sem internet depois da primeira visita
 2. Em `sw.js`, mude o número de `CACHE` (`atmosfera-v4` → `atmosfera-v5`…). É essa mudança que faz o celular baixar a versão nova e mostrar o aviso "Atualizar agora" dentro do app.
 3. Faça o push para `main`: o GitHub Pages publica sozinho.
 
-## Busca de tons na internet
+## Repertório e busca (2.4)
 
-O app não consegue ler outros sites sozinho. `atmosfera-tons-worker.js` é um serviço para Cloudflare Workers
-(plano gratuito: 100 mil consultas/dia) que procura a música no Cifra Club e devolve as versões com o tom.
-Publique uma vez (Workers & Pages → Create Worker → Edit code → Deploy) e coloque o endereço em
-`DEFAULT_SETTINGS.lookupUrl` no `index.html` (ou cole em Repertório → "Busca de tons na internet").
-Origens autorizadas ficam em `ORIGENS` no Worker. Diagnóstico: `URL/?q=galileu&debug=1`.
-`atmosfera-tons.gs` é a mesma coisa para Google Apps Script, caso prefira.
+- **Catálogo embutido** em `CATALOG_RAW` (`index.html`): `Título|Artista|Tom|trechos da letra separados por ;`.
+  O tom é o da gravação original (fichas "Original Master" do MultiTracks.com e cifras publicadas); os trechos são
+  frases curtas, só para a busca encontrar a música pela letra. Para acrescentar uma música, basta uma linha nova.
+- **Busca** (`searchCatalog`/`matchText`): entende nome, artista ou pedaço da letra; ignora acento, maiúsculas e
+  pontuação; aceita começo de palavra (autocompletar), ordem trocada e erro de digitação (distância de edição 1,
+  ou 2 em palavras longas). Palavras muito comuns (de, que, eu…) não são exigidas. Frase inteira dentro do nome
+  vale mais que dentro da letra, que vale mais que no artista. O repertório do usuário é filtrado pelo mesmo motor,
+  usando os trechos do catálogo quando a música veio de lá.
+- **Nada encontrado:** o app mostra links para a busca do Cifra Club e do Letras (abrem no navegador) e o botão
+  "Cadastrar à mão". Não há leitura automática de sites: o Cifra Club responde 403 a servidores (bloqueio
+  deliberado de leitura automatizada), então a versão 2.3 (serviço em Cloudflare Workers / Apps Script que lia as
+  cifras) foi removida. Respeitar isso é condição para um app que vai à loja.
+- **Compartilhar → Atmosfera PAD** (`share_target` no manifesto; `handleShareTarget` no `index.html`): na página
+  da cifra, o compartilhamento do Android abre o app com nome e artista preenchidos (`parseShared` entende os
+  títulos do Cifra Club, Letras e YouTube, com botão para trocar nome ⇄ artista); se a música está no catálogo,
+  o tom já vem sugerido. Funciona com o app instalado na tela inicial.
