@@ -59,7 +59,7 @@ Funciona como app instalável (PWA): abre sem internet depois da primeira visita
 2. Em `sw.js`, mude o número de `CACHE` (`atmosfera-v4` → `atmosfera-v5`…). É essa mudança que faz o celular baixar a versão nova e mostrar o aviso "Atualizar agora" dentro do app.
 3. Faça o push para `main`: o GitHub Pages publica sozinho.
 
-## Repertório e busca (2.5)
+## Repertório e busca (2.5–2.6)
 
 Três camadas, nesta ordem:
 
@@ -88,19 +88,31 @@ removida).
 1. Cloudflare → Workers & Pages → worker `atmosfera-pad` → **Edit code** → colar `atmosfera-pad-worker.js` → **Deploy**.
 2. Chave da IA: [aistudio.google.com](https://aistudio.google.com) → **Get API key** → **Create API key**.
    No worker: **Settings → Variables and Secrets → Add** → tipo *Secret* → nome `GEMINI_KEY` → colar → **Deploy**.
-3. Opcional, recomendado: **Storage & Databases → KV → Create** (`atmosfera-tons`) e, no worker, **Settings →
+3. Opcional, recomendado: **Storage & Databases → KV → Create** (nome: `atmosfera pad`) e, no worker, **Settings →
    Bindings → Add → KV namespace**, variável `TONS`. É o cache compartilhado do modo rápido.
 4. Variáveis opcionais: `MODELOS` e `MODELOS_BUSCA` (listas separadas por vírgula; padrão
-   `gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-2.5-flash-lite` e
-   `gemini-3.5-flash-lite,gemini-2.5-flash-lite,gemini-2.5-flash`), `MODO=conferir` (toda busca já pesquisa no Google).
+   `gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-3.8-flash` e `gemini-3.5-flash-lite,gemini-3.8-flash`),
+   `MODO=conferir` (toda busca já pesquisa no Google).
 5. Teste: `https://atmosfera-pad.ffdasilva1990.workers.dev/?q=galileu&debug=1` (mostra modelo, tentativas e a
    resposta crua da IA). O endereço do serviço fica em `LOOKUP_DEFAULT` no `index.html`.
 
-Plano gratuito do Gemini: modo rápido com Flash-Lite 3.x (centenas de pedidos/dia); a pesquisa Google só existe no
-2.5 Flash-Lite (até 500/dia, partilhados). Com faturamento ativado no AI Studio (Tier 1): 5.000 pesquisas/mês
-grátis nos modelos 3.x, depois US$ 14 por 1.000; tokens custam frações de centavo por busca. O Worker tenta os
-modelos em ordem e passa ao seguinte quando um recusa (limite diário, indisponível no plano). Limites por IP:
-20 buscas rápidas e 6 conferências por minuto. Só o texto digitado sai do aparelho.
+Fluxo no app (2.6): fora do catálogo, o palpite rápido da IA aparece em 2–4 s, marcado "IA · não conferido" (tom em
+estilo incerto) — ele erra artista e tom com frequência, mesmo dizendo "confiança alta" — e a **conferência no Google roda
+sempre, sozinha**, logo em seguida (20–30 s); o resultado conferido substitui o palpite, com o site de origem e as
+sugestões de pesquisa do Google. Com resultado local (repertório ou catálogo), a internet fica a um toque ("Buscar na
+internet (IA)"), e o toque também dispara a conferência. Depois de um erro de limite, as conferências automáticas pausam
+por 10 minutos. Palpites ficam em cache por 7 dias no aparelho e 30 dias no KV; o conferido só na memória da sessão.
+
+Modo **conferir** no Worker, em duas etapas: (1) a IA pesquisa no Google e escreve um relatório em texto — pedir JSON
+nessa etapa faz os modelos pequenos responderem de memória, sem pesquisar; (2) um modelo rápido converte o relatório em
+JSON com esquema. Só vale como "conferido" a resposta que trouxe `groundingMetadata` (a IA pesquisou de fato); sem isso o
+Worker tenta o modelo seguinte e, se nenhum pesquisar, marca o resultado como palpite (`src: "IA"`, nunca confiança alta).
+Nos testes reais (nov/2026) o Flash-Lite nunca pesquisou; o `gemini-3.8-flash` pesquisou e devolveu 6 versões com fonte,
+por isso é o primeiro da lista. A pesquisa Google exige faturamento ativado no AI Studio (Tier 1): 5.000 pesquisas/mês
+grátis, depois US$ 14 por 1.000; tokens custam frações de centavo. No plano gratuito ela responde 429, e os modelos 2.5
+já não aceitam contas novas. O Worker tenta os modelos em ordem e passa ao seguinte quando um recusa (limite,
+indisponível, tempo esgotado — 55 s para pesquisa, 25 s para o resto). Limites por IP: 20 buscas rápidas e 6
+conferências por minuto. Só o texto digitado sai do aparelho.
 
 Testes: `node tests/test_worker.mjs` (Worker com Google simulado), `python3 tests/test_web.py` (fluxo no app com o
 serviço simulado), `python3 tests/test_search.py` (busca local e compartilhamento).

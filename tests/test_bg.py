@@ -3,7 +3,7 @@ pausa externa (sistema) é revertida pelo guardião, e a mídia para quando o so
 import asyncio, subprocess, sys, time
 from playwright.async_api import async_playwright
 
-ROOT = "/home/claude/atmosfera"
+ROOT = "/home/claude/atmosfera-repo"
 PORT = 8774
 
 INIT = """
@@ -128,7 +128,7 @@ async def main():
             if mot3 != "40": fails.append(f"preferência de movimento perdida ({mot3})")
 
             ver = await pg.inner_text("#version"); print(ver)
-            if "2.5" not in ver: fails.append("versão no rodapé")
+            if "2.6" not in ver: fails.append("versão no rodapé")
             if errors: fails.append(f"erros JS: {errors}")
             await pg.set_viewport_size({"width": 390, "height": 844})
             await pg.screenshot(path=f"{ROOT}/shot_mobile_v22.png", full_page=False)

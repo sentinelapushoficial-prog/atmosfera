@@ -1,6 +1,6 @@
 import asyncio, subprocess, time, urllib.parse
 from playwright.async_api import async_playwright
-ROOT="/home/claude/atmosfera"; PORT=8772
+ROOT="/home/claude/atmosfera-repo"; PORT=8772
 async def main():
     srv=subprocess.Popen(["python3","-m","http.server",str(PORT),"--bind","127.0.0.1"],cwd=ROOT,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL); time.sleep(1)
     try:

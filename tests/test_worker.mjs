@@ -2,7 +2,7 @@
 import worker from '../atmosfera-pad-worker.js';
 
 const calls = [];
-let plano = 'pago'; // 'pago' | 'gratis' (3.x com pesquisa dá 429) | 'semchave'
+let semGrounding = false; let plano = 'pago'; // 'pago' | 'gratis' (3.x com pesquisa dá 429) | 'semchave'
 globalThis.fetch = async (url, init) => {
   const body = JSON.parse(init.body);
   const model = decodeURIComponent(url.split('/models/')[1].split(':')[0]);
@@ -16,8 +16,20 @@ globalThis.fetch = async (url, init) => {
   if (schema && model === 'gemini-2.5-flash-lite' && q.includes('semesquema')) return resp(400, { error: { message: 'Invalid JSON schema' } });
   if (q.includes('quota')) return resp(429, { error: { message: 'Quota exceeded', status: 'RESOURCE_EXHAUSTED' } });
   if (q.includes('nada')) return resp(200, { candidates: [{ content: { parts: [{ text: '{"musicas":[]}' }] } }] });
+  const relatorio = body.contents[0].parts[0].text.indexOf('Relatório:') >= 0;
+  if (relatorio) {
+    calls[calls.length - 1].etapa2 = true;
+    const txt = (body.contents[0].parts[0].text.split('<<<')[1] || '');   // só o relatório
+    if (/NADA ENCONTRADO/.test(txt)) return resp(200, { candidates: [{ content: { parts: [{ text: '{"musicas":[]}' }] } }] });
+    const lista = [];
+    if (/Fernandinho/.test(txt)) lista.push({ titulo: 'Dançar na Chuva', artista: 'Fernandinho', tom: 'Ré maior', confianca: 'alta', trecho: 'eu vou dançar na chuva', fonte: 'https://www.cifraclub.com.br/fernandinho/dancar-na-chuva/' });
+    if (/Banda VIP/.test(txt)) lista.push({ titulo: 'Dançar na Chuva', artista: 'Banda VIP', tom: null, confianca: 'baixa' });
+    if (/\| Y \|/.test(txt)) lista.push({ titulo: 'X', artista: 'Y', tom: 'D', confianca: 'alta' });
+    return resp(200, { candidates: [{ content: { parts: [{ text: JSON.stringify({ musicas: lista }) }] } }] });
+  }
+  if (busca && semGrounding) return resp(200, { candidates: [{ content: { parts: [{ text: 'X | Y | Tom: D | Site: cifraclub.com.br | Letra: la la' }] } }] });
   if (busca) {
-    const texto = 'Aqui está:\n```json\n{"musicas":[{"titulo":"Dançar na Chuva","artista":"Fernandinho","tom":"Ré maior","confianca":"alta","trecho":"eu vou dançar na chuva","fonte":"https://www.cifraclub.com.br/fernandinho/dancar-na-chuva/"},{"titulo":"Dançar na Chuva","artista":"Banda VIP","tom":null,"confianca":"baixa"}]}\n```';
+    const texto = 'Encontrei:\nDançar na Chuva | Fernandinho | Tom: D | Site: cifraclub.com.br | Letra: eu vou dançar na chuva\nDançar na Chuva | Banda VIP | Tom: ? | Site: cifraclub.com.br | Letra: eu vou dançar na chuva';
     return resp(200, { candidates: [{ content: { parts: [{ text: texto }] }, groundingMetadata: {
       webSearchQueries: ['dançar na chuva fernandinho tom cifra'],
       searchEntryPoint: { renderedContent: '<style>.c{}</style><div class="container"><a href="https://www.google.com/search?q=x">dançar na chuva tom</a></div>' },
@@ -74,19 +86,26 @@ ok(r.body.ok && calls.length - a2 === 2 && calls[a2].schema && !calls[a2 + 1].sc
 const a3 = calls.length, kvAntes = kv.size;
 r = await call('?q=dan%C3%A7ar%20na%20chuva&conferir=1');
 ok(r.body.ok && r.body.modo === 'conferir' && r.body.grounded === true, 'conferir responde com pesquisa');
-ok(calls[a3].model === 'gemini-3.5-flash-lite' && calls[a3].busca && !calls[a3].schema, 'pesquisa sem esquema JSON (incompatível)');
-ok(r.body.results.length === 2 && r.body.results[0].k === 'D' && r.body.results[0].src === 'cifraclub.com.br', 'JSON dentro de ```json lido; "Ré maior" → D; fonte vira domínio: ' + JSON.stringify(r.body.results));
+ok(calls[a3].model === 'gemini-3.8-flash' && calls[a3].busca && !calls[a3].schema, 'pesquisa: modelo maior primeiro, sem esquema JSON (incompatível)');
+ok(calls[a3 + 1] && calls[a3 + 1].etapa2 && calls[a3 + 1].schema && !calls[a3 + 1].busca && calls.length - a3 === 2, 'etapa 2: relatório vira JSON com esquema, sem pesquisa (' + (calls.length - a3) + ' chamadas)');
+ok(r.body.results.length === 2 && r.body.results[0].k === 'D' && r.body.results[0].src === 'cifraclub.com.br', '"Ré maior" → D; fonte vira domínio: ' + JSON.stringify(r.body.results));
 ok(r.body.results[1].k === null && r.body.results[1].src === 'cifraclub.com.br', 'sem fonte própria herda a primeira fonte da pesquisa');
 ok(r.body.fontes.join(',') === 'cifraclub.com.br,letras.mus.br' && r.body.sugestoes.indexOf('<div') >= 0 && r.body.pesquisas.length === 1, 'fontes, sugestões de pesquisa e consultas presentes');
 ok(!r.body.cached && kv.size === kvAntes, 'conferir não é guardado em cache');
 r = await call('?q=dan%C3%A7ar%20na%20chuva&conferir=1');
 ok(!r.body.cached, 'nem na segunda vez');
 
-// conferir no plano gratuito: 3.x recusa → cai para 2.5
-plano = 'gratis'; const a4 = calls.length;
+// conferir no plano gratuito: 3.x recusa com 429 → erro claro de limite
+plano = 'gratis';
 r = await call('?q=dan%C3%A7ar%20na%20chuva&conferir=1');
-ok(r.body.ok && r.body.model === 'gemini-2.5-flash-lite' && calls.length - a4 === 2, 'plano grátis: 3.5 dá 429 e o 2.5 flash-lite responde (' + r.body.model + ')');
+ok(!r.body.ok && r.body.code === 'limite', 'plano grátis: pesquisa recusada vira erro "limite" (' + r.body.code + ')');
 plano = 'pago';
+
+// modelo que não pesquisou (sem groundingMetadata): rebaixa "alta" e tenta o próximo
+semGrounding = true; const a5 = calls.length;
+r = await call('?q=dan%C3%A7ar%20na%20chuva&conferir=1');
+ok(r.body.ok && r.body.grounded === false && r.body.results.length === 1 && r.body.results.every(x => x.c !== 'alta' && x.src === 'IA') && calls.length - a5 === 3, 'sem pesquisa: tenta 2 modelos (+1 para estruturar), marca como palpite e rebaixa a confiança (' + (calls.length - a5) + ' chamadas)');
+semGrounding = false;
 
 // MODO=conferir faz ?q= já pesquisar
 r = await call('?q=dan%C3%A7ar%20na%20chuva', {}, Object.assign({}, env, { MODO: 'conferir' }));

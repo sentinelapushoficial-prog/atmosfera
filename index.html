@@ -377,7 +377,7 @@ body.palco .song .mark{width:36px;height:36px;font-size:1rem}
           <a class="btn small ghost" id="lnkCifra" href="https://www.cifraclub.com.br/" target="_blank" rel="noopener">Ver no Cifra Club ↗</a>
           <a class="btn small ghost" id="lnkLetras" href="https://www.letras.mus.br/" target="_blank" rel="noopener">Ver no Letras ↗</a>
         </div>
-        <p class="hint" id="searchHint" hidden>Dá para digitar o nome, o artista ou um pedaço da letra, mesmo sem acento ou com erro de digitação. O que não está no catálogo do app é perguntado à IA do Google; "Conferir no Google" faz a IA pesquisar as cifras na hora. Se nada servir, abra o Cifra Club, veja o tom e cadastre à mão — ou, na página da cifra, use <b>Compartilhar → Atmosfera PAD</b>.</p>
+        <p class="hint" id="searchHint" hidden>Dá para digitar o nome, o artista ou um pedaço da letra, mesmo sem acento ou com erro de digitação. O que não está no catálogo do app é perguntado à IA do Google, que em seguida pesquisa as cifras no Google e confere o tom (leva uns segundos). Se nada servir, abra o Cifra Club, veja o tom e cadastre à mão — ou, na página da cifra, use <b>Compartilhar → Atmosfera PAD</b>.</p>
         <form class="addform" id="addForm" autocomplete="off">
           <input type="text" id="addTitle" placeholder="Nome da música" aria-label="Nome da música" maxlength="60">
           <input type="text" id="addArtist" placeholder="Cantor ou ministério (opcional)" aria-label="Artista" maxlength="60">
@@ -450,7 +450,7 @@ body.palco .song .mark{width:36px;height:36px;font-size:1rem}
         <div class="panel-head"><h2 id="hCel">Celular no palco</h2></div>
         <ul class="plain">
           <li><b>Som em segundo plano:</b> enquanto o pad toca, o Atmosfera PAD aparece como mídia na notificação e na tela de bloqueio (Pausar, Próxima, Anterior), e o som segue com a tela apagada ou com outro app na frente (Cifra Club, Bíblia, letras). Só para quando você toca em Parar ou fecha o app. Se outro app tomar o áudio e o pad calar, o Atmosfera PAD tenta voltar em 1–2 s e depois em intervalos maiores, para não ficar disputando o som com o outro app (pela regra do Android, só um toca por vez; se o outro app insistir, pause-o). No Samsung, tire o Chrome de "Apps em suspensão" (Bateria › Limites de uso em segundo plano) e desligue a otimização de bateria do Chrome, para o sistema não derrubar o som.</li>
-          <li><b>Tom de uma música nova:</b> digite o nome, o artista ou um pedaço da letra. O catálogo do app responde na hora para quase 200 louvores (tom da gravação original). O que não está nele vai para a IA do Google (Gemini): ela identifica a música e sugere o tom; se estiver incerta, o app pede a ela que pesquise no Google e confira nas cifras — você também pode pedir isso com <b>Conferir no Google</b>. Resultado conferido aparece com o site de origem e com as sugestões de pesquisa do Google. Só o texto digitado é enviado; nada do seu repertório sai do aparelho. Se nada servir, abra a cifra no Cifra Club e, na página dela, use <b>Compartilhar → Atmosfera PAD</b>: nome e artista chegam preenchidos.</li>
+          <li><b>Tom de uma música nova:</b> digite o nome, o artista ou um pedaço da letra. O catálogo do app responde na hora para quase 200 louvores (tom da gravação original). O que não está nele vai para a IA do Google (Gemini) em duas etapas: primeiro ela dá um palpite rápido (marcado "não conferido"; pode errar), e logo em seguida pesquisa as cifras no Google e confere o tom de cada versão — isso leva uns 20 a 30 segundos. O resultado conferido substitui o palpite e aparece com o site de origem (Cifra Club etc.) e com as sugestões de pesquisa do Google. Se a conferência falhar, <b>Conferir no Google</b> tenta de novo. Só o texto digitado é enviado; nada do seu repertório sai do aparelho. Se nada servir, abra a cifra no Cifra Club e, na página dela, use <b>Compartilhar → Atmosfera PAD</b>: nome e artista chegam preenchidos.</li>
           <li><b>Tela ligada:</b> enquanto o pad toca e o app está na frente, ele pede ao sistema para não apagar a tela. Como garantia, deixe o tempo limite da tela em 10 ou 30 minutos.</li>
           <li><b>Modo avião e Não perturbe:</b> nenhuma página consegue ligar isso por você; é regra do Android. No Samsung, o app <b>Modos e Rotinas</b> faz o serviço: crie um modo "Louvor" que liga o Não perturbe e mantém a tela ligada, e ative com um toque antes do culto (se o seu aparelho oferecer, inclua o modo avião).</li>
           <li><b>Som do aparelho:</b> volume de mídia no máximo, Dolby Atmos e equalizador desligados. O nível fino se faz aqui, com os botões − e + (passos de 5%) olhando o medidor. O controle deslizante vem travado (🔒) para um toque sem querer não mudar o volume no meio do louvor; toque no cadeado para liberá-lo por 20 s.</li>
@@ -696,7 +696,7 @@ var CATALOG_RAW = [
 ];
 
 /* ---------- Repertório inicial ---------- */
-var APP_VERSION = '2.5';
+var APP_VERSION = '2.6';
 var DEFAULT_SETLIST = [
   {id:'d1', t:'Galileu',                           a:'Fernandinho',    k:10, m:'menor'},
   {id:'d2', t:'Canção do Céu',                     a:'Mauro Henrique', k:6,  m:'maior'},
@@ -1575,7 +1575,8 @@ $('#btnSwapTA').addEventListener('click', function(){ var t=$('#addTitle').value
       de quem perguntou: fica só na memória desta sessão e vem com as sugestões de pesquisa, que o app mostra. */
 var LOOKUP_DEFAULT='https://atmosfera-pad.ffdasilva1990.workers.dev/', WEB_MIN=4;
 function lookupUrl(){ var u=String(state.settings.lookupUrl||'').trim(); if(u==='off') return ''; if(!u) u=LOOKUP_DEFAULT; return /^https:\/\//.test(u) ? u : ''; }
-var WEB_STORE='atmosfera.web2', webCache={}, webMem={}, webTimer=0, webSeq=0, webQuotaOut=false;
+var WEB_STORE='atmosfera.web2', webCache={}, webMem={}, webTimer=0, webSeq=0, webQuotaAte=0;
+function webQuotaOut(){ return Date.now() < webQuotaAte; }   // depois de um 'limite', as conferências automáticas param por 10 min
 var webState={q:'', fase:'', results:null, grounded:false, sug:'', fontes:[], erro:'', auto:false, pedido:false};
 try{ var wc=JSON.parse(localStorage.getItem(WEB_STORE)||'{}'); if(wc && typeof wc==='object') webCache=wc; }catch(e){}
 function saveWebCache(){
@@ -1589,7 +1590,7 @@ function webErroTexto(err){
   if(!navigator.onLine) return 'sem internet agora';
   var code=err && err.code, msg=err && err.message || '';
   if(code==='sem-chave') return 'o serviço de busca ainda não foi ativado (falta a chave da IA)';
-  if(code==='limite'){ webQuotaOut=true; return 'a IA atingiu o limite de hoje; tente mais tarde ou cadastre à mão'; }
+  if(code==='limite'){ webQuotaAte=Date.now()+10*60e3; return 'a IA atingiu o limite de hoje; tente mais tarde ou cadastre à mão'; }
   if(code==='ritmo') return 'muitas buscas seguidas; espere um instante';
   if(code==='chave') return 'a chave da IA foi recusada; avise quem cuida do app';
   return msg || 'sem resposta do serviço';
@@ -1622,7 +1623,12 @@ function scheduleWeb(qq, localVazio){
     var mem=webMem[key];
     if(mem){ webState.results=mem.results; webState.grounded=true; webState.sug=mem.sug; webState.fontes=mem.fontes; webState.pedido=true; return; }
     var hit=webCache[key];
-    if(hit && Date.now()-hit.ts < 7*86400e3){ webState.results=hit.results; webState.grounded=false; webState.pedido=true; return; }
+    if(hit && Date.now()-hit.ts < 7*86400e3){
+      webState.results=hit.results; webState.grounded=false; webState.pedido=true;
+      // palpite guardado aparece na hora; a conferência no Google roda sozinha (uma vez por sessão)
+      if(localVazio && !webQuotaOut()){ webState.fase='conferindo'; webTimer=setTimeout(function(){ webTimer=0; runWeb(key, qq, true); }, 800); }
+      return;
+    }
   }
   if(webState.pedido || webState.fase || webTimer) return;   // já pedida, em andamento ou agendada
   if(!localVazio) return;                                    // há resultado local: a internet fica a um toque
@@ -1643,9 +1649,9 @@ function runWeb(key, qq, conferir){
     }else{
       webCache[key]={ts:Date.now(), results:res.results}; saveWebCache();
       webState.results=res.results; webState.grounded=false;
-      // IA sem tom seguro: confere no Google sozinho (uma vez por busca)
-      var seguro=res.results.some(function(r){ return r.k!=null && r.c==='alta'; });
-      if(!seguro && !webQuotaOut && !webMem[key]) { renderWeb(); runWeb(key, qq, true); return; }
+      // O palpite rápido erra artista e tom com frequência (e com "confiança alta"): a conferência no Google
+      // roda sempre, sozinha, logo em seguida — o palpite fica na tela enquanto ela não chega.
+      if(!webQuotaOut() && !webMem[key]) { renderWeb(); runWeb(key, qq, true); return; }
     }
     renderWeb();
   }).catch(function(err){
@@ -1681,14 +1687,14 @@ function renderWeb(){
     fr.hidden=false;
   } else fr.hidden=true;
   if(webState.fase==='ia'){ st.hidden=false; st.textContent='Perguntando à IA…'; return; }
-  if(webState.fase==='conferindo'){ st.hidden=false; st.textContent='Conferindo no Google…'; if(temRes) listarWeb(ol); return; }
+  if(webState.fase==='conferindo'){ st.hidden=false; st.textContent = temRes ? 'Conferindo nas cifras pelo Google (até uns 30 s)… o que está acima é só o palpite da IA.' : 'Conferindo nas cifras pelo Google (até uns 30 s)…'; if(temRes) listarWeb(ol); return; }
   if(webState.erro && !temRes){ st.hidden=false; st.textContent='Não deu para buscar na internet ('+webState.erro+').'; return; }
   if(!webState.pedido){ st.hidden=false; st.textContent = 'Quer outras versões ou um tom que não está aqui? Peça à IA.'; return; }
   if(!temRes){ st.hidden=false; st.textContent = webState.grounded ? 'O Google não trouxe cifra para “'+qq+'”. Tente o nome do cantor ou outro trecho da letra, ou cadastre à mão.' : 'A IA não reconheceu “'+qq+'”. Tente com o nome do cantor ou outro trecho da letra.'; return; }
   var n=listarWeb(ol);
   if(webState.erro){ st.hidden=false; st.textContent='Aviso: '+webState.erro+'.'; }
   else if(!n){ st.hidden=false; st.textContent='As versões encontradas na internet já estão acima.'; }
-  else if(!webState.grounded){ st.hidden=false; st.textContent='Tom sugerido pela IA, sem conferir nas cifras. “?” = incerto. Toque em Conferir no Google para a IA checar.'; }
+  else if(!webState.grounded){ st.hidden=false; st.textContent='Palpite da IA, sem conferir nas cifras — pode errar o artista e o tom. “?” = sem tom. Toque em Conferir no Google para a IA pesquisar.'; }
   else st.hidden=true;
 }
 function listarWeb(ol){
@@ -1701,13 +1707,13 @@ function listarWeb(ol){
 function webRow(r){
   var li=el('li','song web'+(r.grounded?' ok':''));
   var pick=el('button','pick'); pick.type='button';
-  var semTom = r.k==null, incerto = semTom || r.c!=='alta';
+  var semTom = r.k==null, fraco = semTom || r.c!=='alta', incerto = fraco || !r.grounded;
   var kl = semTom ? '?' : keyLabel(r.k,r.m);
   pick.setAttribute('aria-label', (semTom ? 'Cadastrar escolhendo o tom: ' : 'Entrar na lista: ')+r.t+', '+r.a+(semTom ? '' : ', tom '+kl+(r.grounded?' conferido':' sugerido pela IA')));
   var mark=el('span','mark','+'); mark.setAttribute('aria-hidden','true');
   pick.appendChild(mark);
   var tt=el('span','tt'); tt.appendChild(el('span','t',r.t));
-  var sub=(r.a?r.a+' · ':'')+(r.grounded ? 'conferido · '+r.src : 'IA'+(incerto ? ' · tom incerto' : ' · não conferido'));
+  var sub=(r.a?r.a+' · ':'')+(r.grounded ? 'conferido · '+r.src : (fraco ? 'IA · palpite fraco' : 'IA · não conferido'));
   tt.appendChild(el('span','a',sub));
   if(r.trecho) tt.appendChild(el('span','why','letra: “…'+r.trecho+'…”'));
   pick.appendChild(tt);
@@ -2007,7 +2013,7 @@ try{
     });
   }
 }catch(e){}
-window.atmosferaDebug = {state:state, engine:engine, PRESETS:PRESETS, SHAPES:SHAPES, CHORUS:CHORUS, MOTION:MOTION, UNISON:UNISON, GLUE:GLUE, FDN:FDN};   // só para testes automatizados
+window.atmosferaDebug = {state:state, engine:engine, PRESETS:PRESETS, SHAPES:SHAPES, CHORUS:CHORUS, MOTION:MOTION, UNISON:UNISON, GLUE:GLUE, FDN:FDN, webQuotaOut:webQuotaOut, zeraQuota:function(){ webQuotaAte=0; }};   // só para testes automatizados
 })();
 </script>
 </body>

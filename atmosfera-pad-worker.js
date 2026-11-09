@@ -5,7 +5,8 @@
  *
  *  Dois modos (o app usa os dois):
  *   ?q=...              IA responde do que já sabe (rápido, grátis, pode ser guardado em cache)
- *   ?q=...&conferir=1   IA pesquisa no Google na hora e confere o tom nas cifras (Cifra Club etc.).
+ *   ?q=...&conferir=1   IA pesquisa no Google na hora e confere o tom nas cifras (Cifra Club etc.), em duas etapas:
+ *                       1) pesquisa e relatório em texto; 2) um modelo rápido converte o relatório em JSON.
  *                       Pelos termos do Google, esse resultado é mostrado só a quem perguntou, não é
  *                       guardado em cache, e vem com as "Sugestões de pesquisa" que o app exibe.
  *
@@ -15,7 +16,7 @@
  *   2. Chave da IA: aistudio.google.com → Get API key → Create API key (gratuita).
  *      No worker: Settings → Variables and Secrets → Add → tipo Secret → nome GEMINI_KEY → cole a chave → Deploy.
  *   3. Opcional, recomendado (cache compartilhado do modo rápido): Storage & Databases → KV → Create →
- *      nome "atmosfera-tons"; no worker: Settings → Bindings → Add → KV namespace → variável TONS → Deploy.
+ *      nome "atmosfera pad"; no worker: Settings → Bindings → Add → KV namespace → variável TONS → Deploy.
  *   Variáveis opcionais (Settings → Variables): MODELOS, MODELOS_BUSCA (listas separadas por vírgula),
  *      MODO=conferir (todas as buscas já saem conferidas no Google).
  *
@@ -28,10 +29,12 @@ const LIMITE_CONFERIR_MINUTO = 6;      // conferências (pesquisa Google) por IP
 const CACHE_SEGUNDOS = 30 * 24 * 3600; // cache do modo rápido (KV); o modo conferir nunca é guardado
 const MAX_VERSOES = 6;
 // Modelos, em ordem de preferência. Se um falhar (limite diário, indisponível no plano), tenta o seguinte.
-const MODELOS_PADRAO = 'gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-2.5-flash-lite';
-// Pesquisa Google: nos modelos 3.x ela só existe no plano pago (5.000 pesquisas/mês grátis); o 2.5 Flash-Lite
-// tem pesquisa no plano gratuito (até 500/dia). A lista cobre os dois casos.
-const MODELOS_BUSCA_PADRAO = 'gemini-3.5-flash-lite,gemini-2.5-flash-lite,gemini-2.5-flash';
+const MODELOS_PADRAO = 'gemini-3.5-flash-lite,gemini-3.1-flash-lite,gemini-3.8-flash';
+// Pesquisa Google (modo conferir): só existe no plano pago do AI Studio (5.000 pesquisas/mês grátis, depois cobradas).
+// Nos testes reais o Flash-Lite respondeu de memória, sem pesquisar, em todas as tentativas; o Flash (maior, ~20-30 s)
+// pesquisou de fato. Por isso o maior vem primeiro; o lite fica de reserva para quando o maior estiver fora do ar.
+const MODELOS_BUSCA_PADRAO = 'gemini-3.8-flash,gemini-3.5-flash-lite';
+const MAX_TENTATIVAS_BUSCA = 2;        // respostas sem pesquisa toleradas antes de desistir de conferir
 // Origens (sites) autorizadas. Sem Origin (teste direto no navegador) também passa.
 const ORIGENS = [
   'https://sentinelapushoficial-prog.github.io'
@@ -119,20 +122,41 @@ async function buscarRapido(q, env, ctx, debug) {
 /* ---------- modo conferir: a IA pesquisa no Google agora; nada é guardado ---------- */
 async function buscarConferindo(q, env, debug) {
   const log = [];
-  const r = await perguntar(env, listaModelos(env.MODELOS_BUSCA, MODELOS_BUSCA_PADRAO), promptConferir(q), { busca: true }, log);
-  if (!r.ok) return Object.assign({ ok: false, q, modo: 'conferir' }, r, debug ? { log } : {});
-  const gm = r.grounding || {};
-  const fontes = [];
-  (gm.groundingChunks || []).forEach(c => { const t = c && c.web && c.web.title; if (t && fontes.indexOf(t) < 0) fontes.push(t); });
-  const results = extrairMusicas(r.texto).slice(0, MAX_VERSOES).map(m => {
-    if (!m.src || m.src === 'IA') m.src = fontes[0] || 'Google';
+  // Etapa 1 — pesquisar: a IA busca no Google e escreve um relatório em texto (sem JSON, que inibe a pesquisa
+  // nos modelos pequenos). Fica com o primeiro modelo que realmente pesquisou (groundingMetadata presente).
+  const modelos = listaModelos(env.MODELOS_BUSCA, MODELOS_BUSCA_PADRAO);
+  let pesq = null, falha = null, tentativas = 0;
+  for (const model of modelos) {
+    if (tentativas >= MAX_TENTATIVAS_BUSCA) break;
+    const t = await perguntar(env, [model], promptPesquisa(q), { busca: true }, log);
+    if (!t.ok) { falha = t; continue; }
+    tentativas++;
+    const gm = t.grounding || {};
+    const fontes = [];
+    (gm.groundingChunks || []).forEach(c => { const ti = c && c.web && c.web.title; if (ti && fontes.indexOf(ti) < 0) fontes.push(ti); });
+    const grounded = !!(gm.webSearchQueries && gm.webSearchQueries.length) || fontes.length > 0;
+    if (!pesq || grounded) pesq = { texto: t.texto, model: t.model, gm, fontes, grounded };
+    if (grounded) break;
+  }
+  if (!pesq) return Object.assign({ ok: false, q, modo: 'conferir' }, falha || { code: 'falha', error: 'nenhum modelo respondeu', status: 502 }, debug ? { log } : {});
+
+  // Etapa 2 — estruturar: um modelo rápido converte o relatório em JSON (aqui o esquema JSON pode ser usado).
+  let results = [];
+  const semNada = /NADA ENCONTRADO/i.test(pesq.texto) && pesq.texto.length < 200;
+  let estr = null;
+  if (!semNada) {
+    estr = await perguntar(env, listaModelos(env.MODELOS, MODELOS_PADRAO), promptEstruturar(q, pesq.texto, pesq.fontes), { schema: true }, log);
+    results = extrairMusicas(estr.ok ? estr.texto : pesq.texto);
+  }
+  results = results.slice(0, MAX_VERSOES).map(m => {
+    if (pesq.grounded) { if (!m.src || m.src === 'IA') m.src = pesq.fontes[0] || 'Google'; }
+    else { m.src = 'IA'; if (m.c === 'alta') m.c = 'media'; }   // não pesquisou: é palpite, não conferido
     return m;
   });
-  const grounded = !!(gm.webSearchQueries && gm.webSearchQueries.length) || fontes.length > 0;
-  const out = { ok: true, q, modo: 'conferir', grounded, model: r.model, results, fontes,
-    sugestoes: (gm.searchEntryPoint && gm.searchEntryPoint.renderedContent) || '',
-    pesquisas: gm.webSearchQueries || [] };
-  if (debug) { out.log = log; out.bruto = r.texto; }
+  const out = { ok: true, q, modo: 'conferir', grounded: pesq.grounded, model: pesq.model, results, fontes: pesq.fontes,
+    sugestoes: (pesq.gm.searchEntryPoint && pesq.gm.searchEntryPoint.renderedContent) || '',
+    pesquisas: pesq.gm.webSearchQueries || [] };
+  if (debug) { out.log = log; out.pesquisa = pesq.texto; out.bruto = estr && estr.ok ? estr.texto : ''; }
   return out;
 }
 
@@ -153,8 +177,35 @@ const INSTRUCOES = [
 ].join('\n');
 
 function promptRapido(q) { return INSTRUCOES + '\n\nBusca do usuário: "' + q.replace(/"/g, '\'') + '"'; }
-function promptConferir(q) {
-  return INSTRUCOES + '\n\nUse a pesquisa Google para CONFERIR o tom de cada versão nas cifras (prefira cifraclub.com.br; também letras.mus.br, cifras.com.br, multitracks.com). Em "fonte", coloque o site onde conferiu. Só marque confianca alta se o tom veio da cifra encontrada.\n\nBusca do usuário: "' + q.replace(/"/g, '\'') + '"';
+function promptPesquisa(q) {
+  const qq = q.replace(/"/g, '\'');
+  return [
+    'Pesquise no Google agora. Não responda de memória: só vale o que estiver nas páginas encontradas.',
+    'Pergunta do músico: qual é o tom (tonalidade) da música "' + qq + '"? Isso pode ser o nome, parte do nome, o artista ou um trecho da letra, às vezes com erro de digitação; quase sempre é louvor/gospel brasileiro.',
+    'Faça ao menos estas pesquisas: "' + qq + ' cifra" e "' + qq + ' cifra club tom". Se houver mais de uma gravação (artistas ou ministérios diferentes), pesquise o tom de cada uma, até ' + MAX_VERSOES + ' versões.',
+    'Para cada versão encontrada escreva UMA linha, neste formato:',
+    'Título | Artista | Tom: <o que aparece em "Tom:" na cifra, ex. D, F#m, Bb> | Site: <domínio da página> | Letra: <até 8 palavras da letra>',
+    'O tom é o indicado na cifra (o tom real), não a forma dos acordes com capotraste. Se a página não mostrar o tom, escreva "Tom: ?".',
+    'Se não encontrar a música nas páginas, escreva apenas: NADA ENCONTRADO.'
+  ].join('\n');
+}
+function promptEstruturar(q, relatorio, fontes) {
+  return [
+    'Converta o relatório de pesquisa abaixo em JSON. Não acrescente músicas que não estejam no relatório e não altere os tons.',
+    'Formato do tom: letra A–G, opcional # ou b, e "m" para menor (ex.: D, F#m, Bb). "Tom: ?" ou tom ausente → null.',
+    '"confianca": "alta" quando o relatório traz o tom e o site da cifra; "media" quando traz o tom sem o site; "baixa" quando é dúvida.',
+    '"fonte": o site informado na linha (ou null). "trecho": a letra informada na linha (ou null).',
+    'Responda SOMENTE com JSON válido, sem markdown, exatamente neste formato:',
+    '{"musicas":[{"titulo":"Nome da Música","artista":"Artista","tom":"D","confianca":"alta","trecho":"palavras da letra","fonte":"cifraclub.com.br"}]}',
+    'Se o relatório disser NADA ENCONTRADO ou não tiver nenhuma música, responda {"musicas":[]}.',
+    '',
+    'Busca do usuário: "' + q.replace(/"/g, '\'') + '"',
+    'Sites consultados na pesquisa: ' + (fontes && fontes.length ? fontes.join(', ') : '(nenhum)'),
+    'Relatório:',
+    '<<<',
+    String(relatorio || '').slice(0, 6000),
+    '>>>'
+  ].join('\n');
 }
 
 const SCHEMA = {
@@ -182,8 +233,9 @@ async function perguntar(env, modelos, prompt, opts, log) {
       const body = { contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: 2048 } };
       if (opts.busca) body.tools = [{ google_search: {} }];
       if (v.schema) { body.generationConfig.responseMimeType = 'application/json'; body.generationConfig.responseJsonSchema = SCHEMA; }
-      const r = await chamarGemini(env.GEMINI_KEY, model, body);
-      log.push(model + (v.schema ? ' (json)' : '') + (opts.busca ? ' (pesquisa)' : '') + ': HTTP ' + r.status + (r.erro ? ' · ' + r.erro.slice(0, 160) : ''));
+      const r = await chamarGemini(env.GEMINI_KEY, model, body, opts.busca ? 55000 : 25000);
+      const gmk = r.status === 200 && opts.busca ? ' · metadata: ' + Object.keys(candidato(r.data).groundingMetadata || {}).join(',') : '';
+      log.push(model + (v.schema ? ' (json)' : '') + (opts.busca ? ' (pesquisa)' : '') + ': HTTP ' + r.status + (r.erro ? ' · ' + r.erro.slice(0, 160) : '') + gmk);
       if (r.status === 200) {
         const texto = textoDe(r.data);
         if (!texto) { ultimo = { code: 'vazio', error: 'a IA não respondeu nada', status: 502 }; continue; }
@@ -204,9 +256,9 @@ function classificaErro(r) {
   if (r.status === 404) return { code: 'modelo', error: 'modelo não encontrado; ajuste a variável MODELOS', status: 503, detalhe: msg };
   return { code: 'erro', error: 'a IA respondeu com erro: ' + msg.slice(0, 200), status: 502 };
 }
-async function chamarGemini(key, model, body) {
+async function chamarGemini(key, model, body, limiteMs) {
   const ctl = new AbortController();
-  const timer = setTimeout(() => ctl.abort(), 25000);
+  const timer = setTimeout(() => ctl.abort(), limiteMs || 25000);
   try {
     const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent', {
       method: 'POST', signal: ctl.signal,
