@@ -7,7 +7,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Atmosfera</title>
+<title>Atmosfera PAD</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -278,7 +278,7 @@ body.palco .song .mark{width:36px;height:36px;font-size:1rem}
 <div class="wrap">
   <header class="top">
     <div class="brand">
-      <h1 class="name">Atmosfera</h1>
+      <h1 class="name">Atmosfera PAD</h1>
       <p class="tag">pads de fundo para o louvor, sempre com fade</p>
     </div>
     <div class="top-right">
@@ -322,7 +322,7 @@ body.palco .song .mark{width:36px;height:36px;font-size:1rem}
               <button class="btn vol" id="btnVolUp" type="button" aria-label="Aumentar volume">+</button>
             </div>
           </div>
-          <p class="ctx-warn" id="ctxWarn">O sistema interrompeu o som (outro app tomou o áudio ou uma ligação entrou). O Atmosfera tenta voltar sozinho; se não voltar, toque em "Iniciar com fade".</p>
+          <p class="ctx-warn" id="ctxWarn">O sistema interrompeu o som (outro app tomou o áudio ou uma ligação entrou). O Atmosfera PAD tenta voltar sozinho; se não voltar, toque em "Iniciar com fade".</p>
         </div>
       </section>
 
@@ -460,7 +460,7 @@ body.palco .song .mark{width:36px;height:36px;font-size:1rem}
       <section class="panel" aria-labelledby="hCel">
         <div class="panel-head"><h2 id="hCel">Celular no palco</h2></div>
         <ul class="plain">
-          <li><b>Som em segundo plano:</b> enquanto o pad toca, o Atmosfera aparece como mídia na notificação e na tela de bloqueio (Pausar, Próxima, Anterior), e o som segue com a tela apagada ou com outro app na frente (Cifra Club, Bíblia, letras). Só para quando você toca em Parar ou fecha o app. Se outro app tomar o áudio e o pad calar, o Atmosfera tenta voltar em 1–2 s e depois em intervalos maiores, para não ficar disputando o som com o outro app (pela regra do Android, só um toca por vez; se o outro app insistir, pause-o). No Samsung, tire o Chrome de "Apps em suspensão" (Bateria › Limites de uso em segundo plano) e desligue a otimização de bateria do Chrome, para o sistema não derrubar o som.</li>
+          <li><b>Som em segundo plano:</b> enquanto o pad toca, o Atmosfera PAD aparece como mídia na notificação e na tela de bloqueio (Pausar, Próxima, Anterior), e o som segue com a tela apagada ou com outro app na frente (Cifra Club, Bíblia, letras). Só para quando você toca em Parar ou fecha o app. Se outro app tomar o áudio e o pad calar, o Atmosfera PAD tenta voltar em 1–2 s e depois em intervalos maiores, para não ficar disputando o som com o outro app (pela regra do Android, só um toca por vez; se o outro app insistir, pause-o). No Samsung, tire o Chrome de "Apps em suspensão" (Bateria › Limites de uso em segundo plano) e desligue a otimização de bateria do Chrome, para o sistema não derrubar o som.</li>
           <li><b>Tela ligada:</b> enquanto o pad toca e o app está na frente, ele pede ao sistema para não apagar a tela. Como garantia, deixe o tempo limite da tela em 10 ou 30 minutos.</li>
           <li><b>Modo avião e Não perturbe:</b> nenhuma página consegue ligar isso por você; é regra do Android. No Samsung, o app <b>Modos e Rotinas</b> faz o serviço: crie um modo "Louvor" que liga o Não perturbe e mantém a tela ligada, e ative com um toque antes do culto (se o seu aparelho oferecer, inclua o modo avião).</li>
           <li><b>Som do aparelho:</b> volume de mídia no máximo, Dolby Atmos e equalizador desligados. O nível fino se faz aqui, com os botões − e + (passos de 5%) olhando o medidor. O controle deslizante vem travado (🔒) para um toque sem querer não mudar o volume no meio do louvor; toque no cadeado para liberá-lo por 20 s.</li>
@@ -482,7 +482,7 @@ body.palco .song .mark{width:36px;height:36px;font-size:1rem}
 
 <div class="flash" id="flash" hidden role="status"></div>
 <div class="toast" id="toast" hidden role="status">
-  <span>Uma versão nova do Atmosfera já foi baixada. Atualize quando não estiver tocando.</span>
+  <span>Uma versão nova do Atmosfera PAD já foi baixada. Atualize quando não estiver tocando.</span>
   <button class="btn small primary" id="toastReload" type="button">Atualizar agora</button>
   <button class="btn small ghost" id="toastLater" type="button">Depois</button>
 </div>
@@ -666,7 +666,7 @@ var CATALOG_RAW = [
 ];
 
 /* ---------- Repertório inicial ---------- */
-var APP_VERSION = '2.2';
+var APP_VERSION = '2.2.1';
 var DEFAULT_SETLIST = [
   {id:'d1', t:'Galileu',                           a:'Fernandinho',    k:10, m:'menor'},
   {id:'d2', t:'Canção do Céu',                     a:'Mauro Henrique', k:6,  m:'maior'},
@@ -1064,13 +1064,13 @@ function mediaSessionSetup(){
 function mediaSessionUpdate(){
   if(!('mediaSession' in navigator)) return;
   var ms=navigator.mediaSession, s=currentSong();
-  var title = state.free ? 'Tom livre · '+keyLabel(state.key,state.mode) : (s ? s.t : 'Atmosfera');
+  var title = state.free ? 'Tom livre · '+keyLabel(state.key,state.mode) : (s ? s.t : 'Atmosfera PAD');
   var artist = s && !state.free ? keyLabel(state.key,state.mode)+(s.a ? ' · '+s.a : '') : 'pad de fundo';
   var playing = engine.active();
   var sig = title+'|'+artist+'|'+playing;
   if(sig===msLast) return; msLast=sig;
   try{
-    if(window.MediaMetadata) ms.metadata = new MediaMetadata({title:title, artist:artist, album:'Atmosfera',
+    if(window.MediaMetadata) ms.metadata = new MediaMetadata({title:title, artist:artist, album:'Atmosfera PAD',
       artwork:[{src:'icon-192.png', sizes:'192x192', type:'image/png'},{src:'icon-512.png', sizes:'512x512', type:'image/png'}]});
   }catch(e){}
   try{ ms.playbackState = playing ? 'playing' : 'paused'; }catch(e){}
@@ -1800,7 +1800,7 @@ setPalco(state.palco);
 render();
 resizeAura(); drawAura(); drawMeter();
 setTimeout(function(){ resizeAura(); drawAura(); }, 300);
-$('#version').textContent='Atmosfera · versão '+APP_VERSION;
+$('#version').textContent='Atmosfera PAD · versão '+APP_VERSION;
 renderLookupSetup();
 
 /* ---------- App instalável: cache para abrir sem internet (só quando a página é a principal, em https).

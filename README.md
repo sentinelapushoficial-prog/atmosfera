@@ -1,4 +1,4 @@
-# Atmosfera
+# Atmosfera PAD
 
 Pads de fundo para o louvor, sempre com fade: entrada e saída graduais, transição entre tons por crossfade, quatro timbres sintetizados no navegador, repertório com os tons de cada música, modo palco e controle por pedal (teclado Bluetooth ou MIDI).
 
