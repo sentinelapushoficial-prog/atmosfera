@@ -118,10 +118,17 @@ p{margin:0}
 .ctx-warn{display:none;margin-top:10px;color:var(--warn);font-size:.85rem}
 .ctx-warn.show{display:block}
 
-/* Fader grande de volume */
-.fader{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:12px;width:100%;margin-top:14px;padding:10px 12px;border:1px solid var(--line);border-radius:14px;background:rgba(12,15,22,.5)}
+/* Fader grande de volume — travado por padrão (toques sem querer não mudam nada); − e + sempre funcionam */
+.fader{display:grid;gap:8px;width:100%;margin-top:22px;padding:10px 12px;border:1px solid var(--line);border-radius:14px;background:rgba(12,15,22,.5)}
+.fader-head{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px}
+.fader-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px}
 .fader label{font-weight:600;font-size:.95rem}
 .fader output{font-variant-numeric:tabular-nums;min-width:3.2em;text-align:right;font-weight:600}
+.fader .lock{justify-self:center;border:1px solid var(--line);background:var(--ink-2);color:var(--parch);border-radius:999px;padding:6px 12px;font:inherit;font-size:.85rem;cursor:pointer}
+.fader .lock[aria-pressed="false"]{border-color:var(--amber);color:var(--amber)}
+.fader .btn.vol{min-width:56px;height:56px;font-size:1.6rem;line-height:1;padding:0}
+.fader input[type=range]:disabled{opacity:.45}
+.fader input[type=range]:disabled::-webkit-slider-thumb{width:30px;height:30px;margin-top:-9px}
 .fader input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:56px;background:transparent;margin:0}
 .fader input[type=range]::-webkit-slider-runnable-track{height:14px;border-radius:7px;background:linear-gradient(to right,var(--amber) 0 var(--fill,80%),var(--ink-3) var(--fill,80%) 100%);border:1px solid var(--line)}
 .fader input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:46px;height:46px;border-radius:50%;background:var(--parch);border:3px solid var(--amber);margin-top:-17px;box-shadow:0 2px 10px rgba(0,0,0,.5)}
@@ -303,10 +310,17 @@ body.palco .song .mark{width:36px;height:36px;font-size:1rem}
             <button class="btn" id="btnStop">Parar com fade</button>
             <button class="btn danger" id="btnHard">Parar seco</button>
           </div>
-          <div class="fader">
-            <label for="fader">Volume</label>
-            <input type="range" id="fader" min="0" max="1" step="0.01" value="0.8" aria-label="Volume principal">
-            <output id="faderOut" for="fader">80%</output>
+          <div class="fader" id="faderBox">
+            <div class="fader-head">
+              <label for="fader">Volume</label>
+              <button class="lock" id="btnVolLock" type="button" aria-pressed="true" title="Travar ou liberar o controle deslizante">🔒 travado</button>
+              <output id="faderOut" for="fader">80%</output>
+            </div>
+            <div class="fader-row">
+              <button class="btn vol" id="btnVolDown" type="button" aria-label="Diminuir volume">−</button>
+              <input type="range" id="fader" min="0" max="1" step="0.01" value="0.8" aria-label="Volume principal" disabled>
+              <button class="btn vol" id="btnVolUp" type="button" aria-label="Aumentar volume">+</button>
+            </div>
           </div>
           <p class="ctx-warn" id="ctxWarn">O sistema interrompeu o som (outro app tomou o áudio ou uma ligação entrou). O Atmosfera tenta voltar sozinho; se não voltar, toque em "Iniciar com fade".</p>
         </div>
@@ -446,10 +460,10 @@ body.palco .song .mark{width:36px;height:36px;font-size:1rem}
       <section class="panel" aria-labelledby="hCel">
         <div class="panel-head"><h2 id="hCel">Celular no palco</h2></div>
         <ul class="plain">
-          <li><b>Som em segundo plano:</b> enquanto o pad toca, o Atmosfera aparece como mídia na notificação e na tela de bloqueio (Pausar, Próxima, Anterior), e o som segue com a tela apagada ou com outro app na frente. Só para quando você toca em Parar ou fecha o app. Se outro app tomar o áudio, o Atmosfera retoma sozinho em 1–2 s (pela regra do Android, o outro app pausa). No Samsung, tire o Chrome de "Apps em suspensão" (Bateria › Limites de uso em segundo plano) para o sistema não derrubar o som.</li>
+          <li><b>Som em segundo plano:</b> enquanto o pad toca, o Atmosfera aparece como mídia na notificação e na tela de bloqueio (Pausar, Próxima, Anterior), e o som segue com a tela apagada ou com outro app na frente (Cifra Club, Bíblia, letras). Só para quando você toca em Parar ou fecha o app. Se outro app tomar o áudio e o pad calar, o Atmosfera tenta voltar em 1–2 s e depois em intervalos maiores, para não ficar disputando o som com o outro app (pela regra do Android, só um toca por vez; se o outro app insistir, pause-o). No Samsung, tire o Chrome de "Apps em suspensão" (Bateria › Limites de uso em segundo plano) e desligue a otimização de bateria do Chrome, para o sistema não derrubar o som.</li>
           <li><b>Tela ligada:</b> enquanto o pad toca e o app está na frente, ele pede ao sistema para não apagar a tela. Como garantia, deixe o tempo limite da tela em 10 ou 30 minutos.</li>
           <li><b>Modo avião e Não perturbe:</b> nenhuma página consegue ligar isso por você; é regra do Android. No Samsung, o app <b>Modos e Rotinas</b> faz o serviço: crie um modo "Louvor" que liga o Não perturbe e mantém a tela ligada, e ative com um toque antes do culto (se o seu aparelho oferecer, inclua o modo avião).</li>
-          <li><b>Som do aparelho:</b> volume de mídia no máximo, Dolby Atmos e equalizador desligados. O nível fino se faz aqui, no fader grande, olhando o medidor.</li>
+          <li><b>Som do aparelho:</b> volume de mídia no máximo, Dolby Atmos e equalizador desligados. O nível fino se faz aqui, com os botões − e + (passos de 5%) olhando o medidor. O controle deslizante vem travado (🔒) para um toque sem querer não mudar o volume no meio do louvor; toque no cadeado para liberá-lo por 20 s.</li>
         </ul>
       </section>
 
@@ -652,7 +666,7 @@ var CATALOG_RAW = [
 ];
 
 /* ---------- Repertório inicial ---------- */
-var APP_VERSION = '2.0';
+var APP_VERSION = '2.1';
 var DEFAULT_SETLIST = [
   {id:'d1', t:'Galileu',                           a:'Fernandinho',    k:10, m:'menor'},
   {id:'d2', t:'Canção do Céu',                     a:'Mauro Henrique', k:6,  m:'maior'},
@@ -663,7 +677,7 @@ var DEFAULT_SETLIST = [
   {id:'d7', t:'Quebrantado',                       a:'Vineyard',       k:0,  m:'maior'}
 ];
 var DEFAULT_SEQ = ['d1','d2','d3','d4','d5','d6','d7'];
-var DEFAULT_SETTINGS = {preset:'quente', volume:0.8, fadeIn:10, xfade:10, bright:0.5, reverb:0.5, motion:0.35, width:0.5, lookupUrl:'', engine:9};
+var DEFAULT_SETTINGS = {preset:'quente', volume:0.8, fadeIn:10, xfade:10, bright:0.5, reverb:0.5, motion:0.35, width:0.5, lookupUrl:'', engine:9, volLock:true};
 
 /* Dois conjuntos: o repertório (todas as músicas cadastradas, cada uma com o tom em que a igreja toca)
    e a sequência de hoje (ids do repertório, na ordem em que foram tocados). Próxima/Anterior andam pela sequência. */
@@ -697,7 +711,7 @@ function load(){
     if(!raw){ raw = localStorage.getItem('atmosfera.v1'); ver=1; }
     if(!raw) return;
     var d = JSON.parse(raw);
-    if(d.settings){ for(var k in DEFAULT_SETTINGS){ if(typeof d.settings[k]==='number' || typeof d.settings[k]==='string') state.settings[k]=d.settings[k]; } }
+    if(d.settings){ for(var k in DEFAULT_SETTINGS){ if(typeof d.settings[k]==='number' || typeof d.settings[k]==='string' || typeof d.settings[k]==='boolean') state.settings[k]=d.settings[k]; } }
     if(ver===1){ state.settings.fadeIn=Math.max(state.settings.fadeIn,DEFAULT_SETTINGS.fadeIn); state.settings.xfade=Math.max(state.settings.xfade,DEFAULT_SETTINGS.xfade); }
     // motor 9 (2.0): o alcance do "Movimento interno" mudou de escala e a largura/reverb têm novos padrões —
     // quem vem de qualquer versão anterior recebe os padrões novos desses três controles (o resto fica como estava)
@@ -799,7 +813,7 @@ Engine.prototype.resume = function(){
 var BUS_GAIN = 0.7;
 var CHORUS = {rateL:0.5, rateR:0.71, depthL:0.0008, depthR:0.001, baseL:0.0145, baseR:0.0212};
 var GLUE = {threshold:-12, knee:10, ratio:3, attack:0.02, release:0.3, makeup:1.0};
-var SHIMMER_FB = 0.5;
+var SHIMMER_FB = 0.4;
 Engine.prototype.build = function(){
   var c=this.ctx, t0=c.currentTime+0.05;
   this.bus = c.createGain(); this.bus.gain.value=BUS_GAIN;
@@ -824,15 +838,17 @@ Engine.prototype.build = function(){
   this.shifter = makeShifter(c, 2, t0);
   this.shimG = c.createGain(); this.shimG.gain.value=0;
   this.shimFb = c.createGain(); this.shimFb.gain.value=0;
-  this.fx.connect(this.shifter.input); this.shifter.output.connect(this.shimG);
+  this.shimHp = c.createBiquadFilter(); this.shimHp.type='highpass'; this.shimHp.frequency.value=150; this.shimHp.Q.value=-3;   // o shimmer não carrega grave (e nada de DC no laço)
+  this.fx.connect(this.shimHp); this.shimHp.connect(this.shifter.input); this.shifter.output.connect(this.shimG);
 
-  // Reverb por convolução com resposta gerada (cauda longa que escurece)
+  // Reverb: rede de atrasos realimentada (FDN), toda na thread de áudio — leve o bastante para não falhar com o
+  // Chrome em segundo plano (a convolução de 8 s usava uma thread de fundo que o Android estrangula)
   this.rvDry = c.createGain(); this.rvWet = c.createGain();
   this.pre = c.createDelay(0.2); this.pre.delayTime.value=0.04;
-  this.conv = c.createConvolver(); this.conv.buffer = this.makeIR(8);
+  this.fdn = makeFDN(c);
   this.fx.connect(this.rvDry);
-  this.fx.connect(this.pre); this.shimG.connect(this.pre); this.pre.connect(this.conv); this.conv.connect(this.rvWet);
-  this.conv.connect(this.shimFb); this.shimFb.connect(this.shifter.input);   // realimentação (há DelayNodes no laço)
+  this.fx.connect(this.pre); this.shimG.connect(this.pre); this.pre.connect(this.fdn.input); this.fdn.output.connect(this.rvWet);
+  this.fdn.output.connect(this.shimFb); this.shimFb.connect(this.shimHp);          // realimentação do shimmer (há DelayNodes no laço)
 
   // Nivelador (como a masterização dos pads prontos: achata o tremor dos batimentos e os balanços lentos de nível,
   // deixando o movimento no timbre), ganho de compensação, volume, limitador de segurança, medidor
@@ -877,26 +893,32 @@ function makeShifter(c, ratio, t0){
   }
   return {input:input, output:output};
 }
-Engine.prototype.makeIR = function(seconds){
-  var c=this.ctx, sr=c.sampleRate, len=Math.floor(sr*seconds);
-  var buf=c.createBuffer(2,len,sr);
-  for(var ch=0;ch<2;ch++){
-    var d=buf.getChannelData(ch), lp=0, energy=0;
-    for(var i=0;i<len;i++){
-      var t=i/len;
-      var a = 0.6*(1-t)+0.08;               // passa-baixas que fecha com o tempo (cauda escurece, mas guarda ar para o shimmer)
-      var n = Math.random()*2-1;
-      lp += (n-lp)*a;
-      var env = Math.exp(-6.2*t);           // ~-54 dB no fim
-      var early = i < sr*0.08 ? 0.6 : 1;    // início um pouco mais contido
-      d[i] = lp*env*early;
-      energy += d[i]*d[i];
-    }
-    var scale = 0.9/Math.sqrt(energy||1);
-    for(var j=0;j<len;j++) d[j]*=scale;
+/* Reverb FDN: 16 linhas de atraso (50–300 ms, em progressão geométrica, comprimentos co-primos), realimentadas
+   pela matriz de Householder (I − 2/N·11ᵀ: conserva energia e mistura tudo com tudo), amortecimento por passa-baixas
+   em cada linha (a cauda escurece como numa sala) e ganho por linha que fixa o RT60. Entrada: canal esquerdo nas
+   linhas pares, direito nas ímpares; saída: somas com sinais e pesos diferentes para L e R (descorrelacionadas).
+   Sem modulação das linhas: a resposta é fixa, e o nível de um pad sustentado não balança. */
+var FDN = {N:16, minLen:0.05, maxLen:0.3, rt60:10.5, damp:3800, floor:60, inGain:0.5, outGain:0.53};
+function makeFDN(c){
+  var N=FDN.N, sr=c.sampleRate, input=c.createGain(), merge=c.createChannelMerger(2);
+  input.gain.value=FDN.inGain;
+  var split=c.createChannelSplitter(2); input.connect(split);
+  var outL=c.createGain(), outR=c.createGain(); outL.connect(merge,0,0); outR.connect(merge,0,1);
+  var S=c.createGain(); var M=c.createGain(); M.gain.value=-2/N; S.connect(M);
+  for(var i=0;i<N;i++){
+    var len=Math.round(FDN.minLen*Math.pow(FDN.maxLen/FDN.minLen, i/(N-1))*sr*(1+0.013*Math.sin(i*7.3)))/sr;
+    var d=c.createDelay(0.5); d.delayTime.value=len;
+    var lp=c.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=FDN.damp; lp.Q.value=-6;
+    var hp=c.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=FDN.floor; hp.Q.value=-3;   // sem isto, padrões de DC/subgrave ficam presos no laço (autovalor +1 da matriz) e crescem
+    var g=c.createGain(); g.gain.value=Math.pow(10, -3*len/FDN.rt60);
+    d.connect(lp); lp.connect(hp); hp.connect(g);
+    g.connect(d); g.connect(S); M.connect(d);              // entrada da linha i: x_i + g_i·y_i − (2/N)·Σ g_j·y_j
+    split.connect(d, i%2);
+    var tl=c.createGain(); tl.gain.value=(i%2?-1:1)*FDN.outGain*(0.55+0.45*Math.abs(Math.sin(i*2.1+0.7))); d.connect(tl); tl.connect(outL);
+    var tr=c.createGain(); tr.gain.value=((i>>1)%2?-1:1)*FDN.outGain*(0.55+0.45*Math.abs(Math.cos(i*1.7+0.3))); d.connect(tr); tr.connect(outR);
   }
-  return buf;
-};
+  return {input:input, output:merge};
+}
 Engine.prototype.cutoffFor = function(P,S){
   return clamp(P.cutoff*Math.pow(2,(S.bright-0.5)*2.2), 180, 9000);
 };
@@ -1153,35 +1175,40 @@ function mediaSessionUpdate(){
 }
 
 /* ---------- Guardião: o som só para por ação sua (Parar com fade, Parar seco) ou quando o app é fechado ----------
-   Se o sistema pausar a mídia ou interromper o áudio (outro app tomou o som, uma ligação, o celular "dormiu" o
-   navegador), o app tenta voltar sozinho em ~1,2 s, e de novo a cada 3 s enquanto não voltar — no máximo 8 vezes
-   por minuto, para não brigar sem fim com outro app que também insista. Quem toca em Parar, para de verdade. */
-var guard={timer:0, tries:0, since:0};
+   Dois casos, tratados de modo diferente:
+   1. O áudio parou de verdade (o contexto foi interrompido/suspenso pelo sistema — outro app tomou o som, ligação,
+      o celular "dormiu" o navegador): tenta voltar em 1,2 s e, se não voltar, de novo com recuo crescente
+      (3 s, 8 s, 20 s, 45 s), para não ficar brigando sem parar com um app que insiste.
+   2. Só a mídia silenciosa foi pausada, mas o pad continua tocando: não disputa o foco de áudio (isso é o que faz
+      o som dos dois apps ficar intermitente); religa a mídia quando você volta ao app ou, no mais tardar, após 45 s. */
+var guard={timer:0, step:0, pausedAt:0};
+var GUARD_STEPS=[1200, 3000, 8000, 20000, 45000];
 function ctxRunning(){ return !!engine.ctx && engine.ctx.state==='running'; }
-function soundNeedsHelp(){
-  if(!engine.active()) return false;
-  if(!ctxRunning()) return true;
-  return !!media.el && media.el.paused;   // o pad toca, mas sem a proteção de mídia (tela apagada, outro app na frente)
-}
+function mediaPaused(){ return !!media.el && media.el.paused; }
+function soundNeedsHelp(){ return engine.active() && (!ctxRunning() || mediaPaused()); }
 function guardKick(){
   if(guard.timer || !engine.active()) return;
-  var now=Date.now();
-  if(now-guard.since>60000){ guard.since=now; guard.tries=0; }
-  if(guard.tries>=8){ showCtxWarn(!ctxRunning()); return; }
+  var urgent=!ctxRunning();
+  var delay = urgent ? GUARD_STEPS[Math.min(guard.step, GUARD_STEPS.length-1)] : 45000;
   guard.timer=setTimeout(function(){
     guard.timer=0;
-    if(!engine.active()) return;
-    guard.tries++;
+    if(!engine.active() || !soundNeedsHelp()) return;
+    if(!ctxRunning()) guard.step++;
     engine.resume(); mediaPlay(); keepAwake();
-    setTimeout(function(){ showCtxWarn(soundNeedsHelp() && !ctxRunning()); }, 600);
-  }, 1200);
+    setTimeout(function(){ showCtxWarn(engine.active() && !ctxRunning()); if(soundNeedsHelp()) guardKick(); }, 800);
+  }, delay);
+}
+function guardNow(){ // o usuário voltou ao app: tenta já, sem recuo
+  if(guard.timer){ clearTimeout(guard.timer); guard.timer=0; }
+  guard.step=0;
+  if(soundNeedsHelp()){ engine.resume(); mediaPlay(); keepAwake(); setTimeout(function(){ showCtxWarn(engine.active() && !ctxRunning()); if(soundNeedsHelp()) guardKick(); }, 800); }
 }
 setInterval(function(){
-  if(soundNeedsHelp()) guardKick();
-  else if(!engine.active()){ guard.tries=0; mediaPause(); mediaSessionUpdate(); } // em segundo plano o laço de desenho não roda; encerra a mídia por aqui
+  if(engine.active()){ if(ctxRunning() && !mediaPaused()) guard.step=0; if(soundNeedsHelp()) guardKick(); }
+  else { guard.step=0; mediaPause(); mediaSessionUpdate(); }   // em segundo plano o laço de desenho não roda; encerra a mídia por aqui
 }, 3000);
-window.addEventListener('focus', function(){ if(soundNeedsHelp()) guardKick(); });
-window.addEventListener('pageshow', function(){ if(soundNeedsHelp()) guardKick(); });
+window.addEventListener('focus', guardNow);
+window.addEventListener('pageshow', guardNow);
 
 /* ---------- Tela ligada ---------- */
 var wakeLock=null;
@@ -1191,8 +1218,7 @@ function keepAwake(){
 }
 function releaseAwake(){ if(wakeLock){ try{ wakeLock.release(); }catch(e){} wakeLock=null; } }
 document.addEventListener('visibilitychange', function(){
-  if(document.visibilityState==='visible'){ if(engine.playing) keepAwake(); }
-  if(soundNeedsHelp()) guardKick();
+  if(document.visibilityState==='visible'){ if(engine.playing) keepAwake(); guardNow(); }
 });
 
 function showCtxWarn(on){ var w=$('#ctxWarn'); if(on) w.classList.add('show'); else w.classList.remove('show'); }
@@ -1712,8 +1738,24 @@ $('#btnStop').addEventListener('click', stop);
 $('#btnHard').addEventListener('click', hardStop);
 $('#btnNext').addEventListener('click', function(){ gesture(); next(); });
 $('#btnPrev').addEventListener('click', function(){ gesture(); if(state.free && currentSong()) selectSong(state.curId); else prev(); });
-$('#fader').addEventListener('input', function(){ setVolume(parseFloat(this.value), true); });
+$('#fader').addEventListener('input', function(){ setVolume(parseFloat(this.value), true); armRelock(); });
 $('#fader').addEventListener('change', function(){ save(); });
+/* Trava do fader: travado por padrão; ao liberar, volta a travar sozinho depois de 20 s sem mexer */
+var relockTimer=0;
+function setVolLock(locked){
+  state.settings.volLock=!!locked;
+  var f=$('#fader'), b=$('#btnVolLock');
+  f.disabled=!!locked; b.setAttribute('aria-pressed', locked ? 'true' : 'false');
+  b.textContent = locked ? '🔒 travado' : '🔓 livre por 20 s';
+  if(relockTimer){ clearTimeout(relockTimer); relockTimer=0; }
+  if(!locked) armRelock();
+}
+function armRelock(){ if(state.settings.volLock) return; if(relockTimer) clearTimeout(relockTimer); relockTimer=setTimeout(function(){ setVolLock(true); save(); }, 20000); }
+$('#btnVolLock').addEventListener('click', function(){ setVolLock(!state.settings.volLock); save(); });
+function nudgeVolume(delta){ setVolume(clamp(Math.round((state.settings.volume+delta)*100)/100, 0, 1)); save(); }
+$('#btnVolDown').addEventListener('click', function(){ nudgeVolume(-0.05); });
+$('#btnVolUp').addEventListener('click', function(){ nudgeVolume(0.05); });
+setVolLock(state.settings.volLock!==false);
 function setPalco(on){
   state.palco=on;
   document.body.classList.toggle('palco', on);
@@ -1876,7 +1918,7 @@ try{
     });
   }
 }catch(e){}
-window.atmosferaDebug = {state:state, engine:engine, PRESETS:PRESETS, SHAPES:SHAPES, CHORUS:CHORUS, MOTION:MOTION, UNISON:UNISON, GLUE:GLUE};   // só para testes automatizados
+window.atmosferaDebug = {state:state, engine:engine, PRESETS:PRESETS, SHAPES:SHAPES, CHORUS:CHORUS, MOTION:MOTION, UNISON:UNISON, GLUE:GLUE, FDN:FDN};   // só para testes automatizados
 })();
 </script>
 </body>

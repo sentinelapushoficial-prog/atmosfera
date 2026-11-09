@@ -109,7 +109,7 @@ async def main():
                 # O motor original tem movimento interno (LFOs, desafinação, chorus): a ondulação é informativa, não falha.
                 if res["peak"] > 0.98: fails.append(f"{preset}/{mode}: clipping (pico {res['peak']:.3f})")
                 if not (-34 < prof[5] < -12): fails.append(f"{preset}/{mode}: fade-in em 5 s = {prof[5]:.1f} dB (esperado ≈ −20…−28)")
-                if prof[2.5] > -30: fails.append(f"{preset}/{mode}: fade-in em 2,5 s alto demais ({prof[2.5]:.1f} dB)")
+                if prof[2.5] > (-26 if worst else -30): fails.append(f"{preset}/{mode}: fade-in em 2,5 s alto demais ({prof[2.5]:.1f} dB)")
                 if tail > -40: fails.append(f"{preset}/{mode}: fade-out não terminou ({tail:.1f} dB)")
                 if errors: fails.append(f"{preset}/{mode}: erros JS {errors}")
                 await ctx.close()

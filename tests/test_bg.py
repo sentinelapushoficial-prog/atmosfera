@@ -50,16 +50,40 @@ async def main():
             s2 = await ms(pg); print("música da sequência:", s2)
             if s2["title"] != "Galileu" or not any(k in (s2["artist"] or "") for k in ("A♯m","B♭m","Bbm")): fails.append(f"metadados da música = {s2['title']} / {s2['artist']}")
 
-            # Pausa externa (como o sistema faz ao perder o foco de áudio): o guardião retoma em ~1,2 s
+            # Pausa externa da mídia com o pad ainda rodando: o guardião NÃO disputa o foco (ficaria intermitente)…
             await pg.evaluate("() => window.__audios[0].pause()")
-            await pg.wait_for_timeout(300)
-            s3 = await ms(pg); print("logo após pausa externa:", s3["paused"])
-            await pg.wait_for_timeout(1800)
-            s4 = await ms(pg); print("~2 s depois:", s4)
-            if s4["paused"] is not False: fails.append("guardião não retomou a mídia após pausa externa")
+            await pg.wait_for_timeout(2500)
+            s3 = await ms(pg); print("2,5 s após pausa externa (pad rodando → mídia fica pausada):", s3["paused"])
+            if s3["paused"] is not True: fails.append("guardião disputou o foco com o pad rodando")
+            # …mas religa a mídia assim que o usuário volta ao app
+            await pg.evaluate("() => window.dispatchEvent(new Event('focus'))")
+            await pg.wait_for_timeout(600)
+            s4 = await ms(pg); print("após voltar ao app:", s4["paused"])
+            if s4["paused"] is not False: fails.append("guardião não religou a mídia quando o usuário voltou")
             warn = await pg.evaluate("() => document.getElementById('ctxWarn').classList.contains('show')")
             print("aviso visível (contexto segue rodando → não deve):", warn)
             if warn: fails.append("aviso de interrupção apareceu com o contexto rodando")
+
+            # Volume travado: o fader vem desabilitado; − e + funcionam em passos de 5%; o cadeado libera
+            vol = await pg.evaluate("() => ({disabled: document.getElementById('fader').disabled, out: document.getElementById('faderOut').textContent, lock: document.getElementById('btnVolLock').textContent})")
+            print("volume:", vol)
+            if not vol["disabled"] or vol["out"] != "80%": fails.append(f"fader deveria vir travado em 80% ({vol})")
+            await pg.click("#btnVolDown"); await pg.click("#btnVolDown"); await pg.wait_for_timeout(100)
+            o1 = await pg.evaluate("() => document.getElementById('faderOut').textContent")
+            await pg.click("#btnVolUp"); await pg.wait_for_timeout(100)
+            o2 = await pg.evaluate("() => document.getElementById('faderOut').textContent")
+            print("após − − +:", o1, o2)
+            if o1 != "70%" or o2 != "75%": fails.append(f"botões −/+ ({o1}, {o2})")
+            await pg.click("#btnVolLock"); await pg.wait_for_timeout(100)
+            unl = await pg.evaluate("() => ({disabled: document.getElementById('fader').disabled, lock: document.getElementById('btnVolLock').textContent})")
+            print("após tocar no cadeado:", unl)
+            if unl["disabled"]: fails.append("cadeado não liberou o fader")
+            await pg.click("#btnVolLock"); await pg.wait_for_timeout(100)
+            await pg.reload(); await pg.wait_for_timeout(600)
+            after = await pg.evaluate("() => ({disabled: document.getElementById('fader').disabled, out: document.getElementById('faderOut').textContent})")
+            print("após recarregar (trava e volume persistem):", after)
+            if not after["disabled"] or after["out"] != "75%": fails.append(f"trava/volume não persistiram ({after})")
+            await pg.click('.key[data-pc="2"]'); await pg.wait_for_timeout(800)
 
             # Parar seco: mídia para depois da cauda (1 s) + ciclo do guardião (3 s); estado vira 'paused'
             await pg.click("#btnHard"); await pg.wait_for_timeout(4800)
@@ -105,10 +129,10 @@ async def main():
             if mot3 != "40": fails.append(f"preferência de movimento perdida ({mot3})")
 
             ver = await pg.inner_text("#version"); print(ver)
-            if "2.0" not in ver: fails.append("versão no rodapé")
+            if "2.1" not in ver: fails.append("versão no rodapé")
             if errors: fails.append(f"erros JS: {errors}")
             await pg.set_viewport_size({"width": 390, "height": 844})
-            await pg.screenshot(path=f"{ROOT}/shot_mobile_v20.png", full_page=False)
+            await pg.screenshot(path=f"{ROOT}/shot_mobile_v21.png", full_page=False)
             await b.close()
     finally:
         srv.terminate()
